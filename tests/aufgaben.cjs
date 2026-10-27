@@ -12,7 +12,8 @@ class Dir {
     return { name: n, kind: 'file', getFile: async () => { const b = await fs.readFile(p); return { size: b.length, text: async () => b.toString() }; },
       createWritable: async () => { let t = ''; return { write: async x => { t += x; }, close: async () => fs.writeFile(p, t), abort: async () => {} }; } };
   }
-  async *values(){ for (const e of await fs.readdir(this.path, { withFileTypes: true })) yield e.isDirectory() ? new Dir(path.join(this.path, e.name)) : { kind: 'file', name: e.name }; }
+  // Reihenfolge der Einträge wie im Dateisystem; Dir.reihenfolge = 'auf' | 'ab' erzwingt sie (Tests, die nicht davon abhängen dürfen)
+  async *values(){ const l = await fs.readdir(this.path, { withFileTypes: true }); if (Dir.reihenfolge){ l.sort((x, y) => x.name.localeCompare(y.name)); if (Dir.reihenfolge === 'ab') l.reverse(); } for (const e of l) yield e.isDirectory() ? new Dir(path.join(this.path, e.name)) : { kind: 'file', name: e.name }; }
 }
 let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' + name); };
 
@@ -89,6 +90,28 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
       await B.vermerken(p, { aufgabe: id, schritt: 'versand', empfaenger: 'r-2', von: 'Nad' });
       x = (await B.projektLesen(p)).aufgaben.find(y => y.id === id); assert.equal(x.status, 'Erledigt');
       const d2 = B.alsDurchlauf([x])[0]; assert.equal(d2.status, 'Erledigt'); assert.equal(d2.order.created, '2026-10-26T09:00:00.000Z'); assert.equal(d2.sent['r-1'].date, '2026-10-26');
+    });
+
+    await ok('frühere Büroübergabe mit zwei neuen Fassungen: die zeitlich letzte gilt, egal in welcher Reihenfolge die Dateien gelesen werden', async () => {
+      const eigen = new Dir(await fs.mkdtemp(path.join(os.tmpdir(), 'buerokit-fassungen-'))), q = await eigen.getDirectoryHandle('26.0104 Fassungen', { create: true });   // eigenes Archiv: zählt nicht in den Archivlisten unten
+      const id = '22222222-3333-4444-8555-666666666666', d = await (await q.getDirectoryHandle('_Buero', { create: true })).getDirectoryHandle(id, { create: true });
+      const put = (name, o) => fs.writeFile(path.join(d.path, name), JSON.stringify(o));
+      const rcp = label => [{ id: 'r-1', group: 'versicherung', label, details: 'Muster AG' }];
+      await put('auftrag.json', { format: 'spektron-buero', version: 1, id, created: '2026-10-20T09:00:00.000Z', content: { project: { name: '26.0104 Fassungen', nr: '26.0104', ort: 'Fassungen' },
+        word: 'Mitteilungen/Fassung 1.docx', who: 'Dr. Ka', note: 'erste', instruction: '', recipients: rcp('Auftraggeber') } });
+      const ev = (eid, at, type, payload) => put(`rueckmeldung-${eid}.json`, { format: 'spektron-buero', version: 1, id: eid, orderId: id, at, actor: 'Dr. Ka', parents: [], type, payload });
+      // Dateiname der neueren Fassung sortiert VOR der älteren
+      await ev('f0000000-0000-4000-8000-000000000003', '2026-10-22T09:00:00.000Z', 'revise', { content: { word: 'Mitteilungen/Fassung 3.docx', note: 'dritte', recipients: rcp('Versicherung (neu)') } });
+      await ev('f9999999-0000-4000-8000-000000000002', '2026-10-21T09:00:00.000Z', 'revise', { content: { word: 'Mitteilungen/Fassung 2.docx', note: 'zweite', recipients: rcp('Versicherung (alt)') } });
+      try{
+        for (const r of ['auf', 'ab']){
+          Dir.reihenfolge = r;
+          const x = (await B.projektLesen(q)).aufgaben.find(y => y.id === id);
+          assert.equal(x.word, 'Mitteilungen/Fassung 3.docx', `Word-Fassung (Lesereihenfolge ${r})`);
+          assert.equal(x.hinweis, 'dritte'); assert.equal(x.empfaenger[0].label, 'Versicherung (neu)');
+          assert.equal(x.gegenlesen, null); assert.equal(x.pdf, null);
+        }
+      }finally{ Dir.reihenfolge = ''; await fs.rm(eigen.path, { recursive: true, force: true }); }
     });
 
     await ok('kopierte Aufgabe aus einem anderen Projekt und kaputte Einzeldatei: genannt, Rest bleibt sichtbar', async () => {
