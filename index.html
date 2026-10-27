@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>BüroKit · Aufgaben des Büros</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#4179b2">
+<style>
+:root{
+  --bg:#eef4fb; --panel:#ffffff; --panel2:#f4f9fe; --line:#dce8f5; --line2:#c2d6ec; --text:#21303e; --muted:#6b8199;
+  --accent:#3f7cc0; --accent-2:#356aa8; --head:#4179b2; --ok:#2e7d4f; --ok-l:#e6f4ec; --warn:#9a5b00; --warn-l:#fff3dc; --err:#c0392b; --err-l:#fde9e7;
+  --shadow:0 1px 2px rgba(40,72,116,.05),0 1px 3px rgba(40,72,116,.07);
+  --sans:"Segoe UI",system-ui,-apple-system,Arial,sans-serif; --mono:ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#131b24; --panel:#1a2430; --panel2:#202c3a; --line:#2c3b4d; --line2:#3a4d63; --text:#e3ebf3; --muted:#93a7bc;
+    --accent:#6fa3dc; --accent-2:#5a93d0; --head:#24476d; --ok:#6cc08a; --ok-l:#1d3326; --warn:#e2b34f; --warn-l:#3a2e14; --err:#f07a70; --err-l:#3d2220; --shadow:0 1px 3px rgba(0,0,0,.35); }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 var(--sans)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line2);background:var(--panel);border-radius:7px;padding:6px 12px}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.55;cursor:default}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.link{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline}
+input,select,textarea{border:1px solid var(--line2);border-radius:7px;padding:6px 9px;background:var(--panel)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+header{background:var(--head);color:#fff;display:flex;align-items:center;gap:14px;padding:10px 20px;flex-wrap:wrap}
+header .brand{font-weight:700;font-size:18px;display:flex;align-items:center;gap:9px}
+header .brand img{width:26px;height:26px}
+header .brand small{font-weight:400;opacity:.8;font-size:13px}
+header .spacer{flex:1}
+header label{display:flex;align-items:center;gap:6px;font-size:13px}
+header select,header input{background:#fff;color:#21303e;border-color:transparent;padding:4px 8px}
+header button{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.35);color:#fff;padding:5px 11px}
+header a{color:#fff;font-size:13px;opacity:.9}
+.bar{display:flex;align-items:center;gap:10px;padding:12px 20px 4px;flex-wrap:wrap;max-width:1180px;margin:0 auto}
+.chips{display:flex;gap:4px}
+.chips button{border-radius:16px;padding:4px 13px}
+.chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.bar .spacer{flex:1}
+.bar input[type=search]{min-width:220px}
+#stand{color:var(--muted);font-size:12.5px}
+main{max-width:1180px;margin:0 auto;padding:6px 20px 60px}
+.hinweis{background:var(--warn-l);border:1px solid var(--warn);color:var(--text);border-radius:8px;padding:9px 12px;margin:10px 0}
+.hinweis.err{background:var(--err-l);border-color:var(--err)}
+.hinweis.ok{background:var(--ok-l);border-color:var(--ok)}
+.leer{color:var(--muted);text-align:center;padding:40px 10px}
+.start{max-width:560px;margin:50px auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:26px 28px;box-shadow:var(--shadow)}
+.start h2{margin:0 0 8px}
+section.gruppe>h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:22px 0 8px;display:flex;gap:8px;align-items:center}
+section.gruppe>h2 .n{background:var(--line);color:var(--text);border-radius:10px;padding:0 7px;font-size:11.5px;letter-spacing:0}
+section.gruppe.ueberfaellig>h2{color:var(--err)}
+details.gruppe>summary{cursor:pointer;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:22px 0 8px}
+.aufgabe{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin:0 0 8px;padding:10px 14px}
+.aufgabe.erledigt{opacity:.7}
+.aufgabe.frage{border-color:var(--warn)}
+.kopf{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.was{flex:1 1 320px;min-width:0}
+.projekt{font-weight:700}
+.projekt .nr{font-family:var(--mono);font-weight:600;margin-right:6px}
+.projekt .wer{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:6px}
+.titel{margin-top:1px}
+.meta{color:var(--muted);font-size:12.5px;margin-top:2px}
+.badge{display:inline-block;border-radius:10px;padding:0 8px;font-size:11.5px;font-weight:600;margin-left:6px;vertical-align:1px}
+.badge.ueberfaellig{background:var(--err-l);color:var(--err)}
+.badge.heute{background:var(--warn-l);color:var(--warn)}
+.badge.frage{background:var(--warn-l);color:var(--warn)}
+.badge.bearbeitet{background:var(--panel2);color:var(--muted);border:1px solid var(--line)}
+.schritte{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.schritt{display:flex;align-items:center;gap:6px;border:1px solid var(--line2);border-radius:8px;padding:5px 10px;background:var(--panel);cursor:pointer;user-select:none;white-space:nowrap}
+.schritt input{width:17px;height:17px;margin:0;cursor:pointer;accent-color:var(--ok)}
+.schritt.an{background:var(--ok-l);border-color:var(--ok)}
+.schritt.teil{background:var(--warn-l);border-color:var(--warn)}
+.schritt[aria-disabled="true"]{opacity:.55;cursor:default}
+.mehr{margin-top:8px;border-top:1px dashed var(--line);padding-top:8px;display:grid;gap:8px}
+.mehr[hidden]{display:none}
+.zeile{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.zeile .lbl{color:var(--muted);font-size:12.5px;min-width:90px}
+.pfad{font-family:var(--mono);font-size:12.5px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;user-select:all;overflow-wrap:anywhere}
+.empf{display:grid;gap:5px}
+.empf label{display:flex;gap:8px;align-items:flex-start;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);cursor:pointer}
+.empf label.an{border-color:var(--ok);background:var(--ok-l)}
+.empf input{margin-top:3px;accent-color:var(--ok)}
+.empf small{display:block;color:var(--muted)}
+.empf b{display:block}
+.empf .adr{white-space:pre-line;overflow-wrap:anywhere}
+.dialog{display:grid;gap:6px}
+.dialog .eintrag{font-size:13px;border-left:3px solid var(--line2);padding:2px 8px}
+.dialog .eintrag.frage{border-color:var(--warn)}
+.aktionen{display:flex;gap:6px;flex-wrap:wrap}
+.aktionen button{font-size:13px;padding:4px 10px}
+.verlauf{font-size:12px;color:var(--muted)}
+.verlauf summary{cursor:pointer}
+.verlauf ul{margin:4px 0 0;padding-left:18px}
+.toggle{border:0;background:none;color:var(--accent);padding:2px 4px;font-size:13px}
+dialog{border:1px solid var(--line2);border-radius:12px;padding:0;max-width:560px;width:calc(100% - 30px);background:var(--panel);color:var(--text);box-shadow:0 10px 40px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(20,30,45,.4)}
+dialog form{padding:18px 20px;display:grid;gap:10px}
+dialog h3{margin:0}
+dialog label{display:grid;gap:3px;font-size:13px;color:var(--muted)}
+dialog .knoepfe{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+footer{max-width:1180px;margin:0 auto;padding:0 20px 30px;color:var(--muted);font-size:12px}
+@media (max-width:700px){ header,.bar,main{padding-left:12px;padding-right:12px} .bar input[type=search]{min-width:120px;flex:1 1 140px;order:5} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><img src="icon.svg" alt=""><span>BüroKit</span><small>Aufgaben des Büros</small></div>
+  <span class="spacer"></span>
+  <label>Ich bin <select id="ich" aria-label="Mein Kürzel"><option value="">– Kürzel –</option></select></label>
+  <button id="btnAktualisieren" title="Alle Projekte neu lesen (passiert auch automatisch jede Minute)">⟳ Aktualisieren</button>
+  <button id="btnArchiv" title="Archivordner (z. B. „Mosaik Archivordner“) wählen">📁 Archivordner</button>
+  <a id="lnkRueckmeldung" href="../rueckmeldung/?app=buerokit" target="rueckmeldung" rel="noopener">💬 Rückmeldung</a>
+</header>
+
+<div class="bar" id="leiste" hidden>
+  <div class="chips" role="group" aria-label="Filter">
+    <button data-filter="alle" aria-pressed="true">Alle</button>
+    <button data-filter="meine" aria-pressed="false" title="Mir zugewiesen oder von mir übernommen">Meine</button>
+  </div>
+  <input type="search" id="suche" placeholder="Projekt, Ort oder Aufgabe suchen" aria-label="Suchen">
+  <span class="spacer"></span>
+  <span id="stand" role="status"></span>
+  <button class="primary" id="btnNeu">＋ Aufgabe</button>
+</div>
+
+<main>
+  <div id="hinweise"></div>
+  <div id="start" class="start" hidden>
+    <h2>Willkommen bei BüroKit</h2>
+    <p>Hier steht, was im Büro zu tun ist: übergebene Gutachten (gegenlesen, PDF, Versand) und eigene Aufgaben je Projekt. Alles wird direkt in den Projektordnern gespeichert – kein Server, nichts wird hochgeladen.</p>
+    <p>Bitte einmal den <b>Archivordner</b> wählen (der Ordner mit allen Projektordnern, z. B. „Mosaik Archivordner“).</p>
+    <p><button class="primary" id="btnArchiv2">📁 Archivordner wählen …</button></p>
+    <p id="startRecht" hidden><button class="primary" id="btnRecht">Zugriff auf den Archivordner erlauben</button></p>
+    <p class="meta" id="startBrowser" hidden>Dieser Browser kann keine Ordner öffnen. Bitte BüroKit in Chrome oder Edge öffnen.</p>
+  </div>
+  <div id="liste"></div>
+</main>
+<footer><span id="version"></span> · Gespeichert wird je Projekt in „_Buero“ (eine kleine Datei je Aufgabe und je Haken). <a href="../aidkit/#app-buerokit" target="aidkit" rel="noopener">📘 Handbuch</a></footer>
+
+<dialog id="dlgNeu">
+  <form method="dialog" id="formNeu">
+    <h3>Neue Aufgabe</h3>
+    <label>Projekt <input id="neuProjekt" list="projektListe" required placeholder="z. B. 26.0123 Köln" autocomplete="off"></label>
+    <datalist id="projektListe"></datalist>
+    <label>Was ist zu tun? <input id="neuTitel" required maxlength="300" placeholder="z. B. Laborrechnung prüfen, Kunde zurückrufen"></label>
+    <div class="zeile"><label>Fällig am <input type="date" id="neuFaellig"></label><label>Für <select id="neuFuer"><option value="">– alle –</option></select></label></div>
+    <label>Hinweis (optional) <textarea id="neuHinweis" rows="2" maxlength="2000"></textarea></label>
+    <div id="neuFehler" class="hinweis err" hidden></div>
+    <div class="knoepfe"><button type="button" id="neuAbbrechen">Abbrechen</button><button class="primary" id="neuOk" value="ok">Anlegen</button></div>
+  </form>
+</dialog>
+<dialog id="dlgText">
+  <form method="dialog" id="formText">
+    <h3 id="textTitel"></h3>
+    <label id="textLabel"><span id="textFrage"></span><textarea id="textFeld" rows="3" maxlength="2000"></textarea></label>
+    <div class="knoepfe"><button type="button" id="textAbbrechen">Abbrechen</button><button class="primary" id="textOk" value="ok">Speichern</button></div>
+  </form>
+</dialog>
+
+<script src="buero-aufgaben.js"></script>
+<script>
+'use strict';
+const APP_VERSION = '1.0.0';
+const B = window.BueroAufgaben;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const MA_FILE = '_Spektron-Mitarbeiter.json';
+/* SPEKTRON-ORDNERNAME v1 – Kopie aus der Projektzentrale (dort identisch zu halten). */
+const PROJ_RE = /^(\d{2})\.(\d{2,6})(?:[\s_-]+(.*))?$/;
+const maNorm = s => String(s ?? '').normalize('NFC').toLowerCase().replace(/[\s.]+/g, '');
+function leseProjektordner(name, personen){
+  const m = PROJ_RE.exec(String(name).normalize('NFC').trim());
+  if (!m) return null;
+  const rest = (m[3] || '').trim();
+  const r = { nr: `${m[1]}.${m[2]}`, ort: rest, kuerzel: '' };
+  if (!Array.isArray(personen) || !personen.length) return r;
+  const woerter = [...rest.matchAll(/[^\s_]+/g)];
+  for (let n = Math.min(3, woerter.length); n >= 1; n--){
+    const ende = maNorm(woerter.slice(-n).map(w => w[0]).join(''));
+    const p = personen.find(x => x && maNorm(x.ordnerKuerzel) === ende);
+    if (!p) continue;
+    r.kuerzel = String(p.ordnerKuerzel).trim();
+    r.ort = rest.slice(0, woerter[woerter.length - n].index).replace(/[\s_-]+$/, '');
+    return r;
+  }
+  return r;
+}
+
+/* ---------- Speicher ---------- */
+const lsGet = (k, d) => { try{ const v = localStorage.getItem(k); return v == null ? d : v; }catch(e){ return d; } };
+const lsSet = (k, v) => { try{ localStorage.setItem(k, v); }catch(e){} };
+// Archivordner im gemeinsamen Browser-Speicher der Spektron-Apps (gleicher Schlüssel wie die Projektzentrale) – läuft aber auch allein.
+const KV = {
+  db: null,
+  open(){ return this.db || (this.db = new Promise((res, rej) => { const r = indexedDB.open('mosaik-suite', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); })); },
+  async get(k){ const db = await this.open(); return new Promise((res, rej) => { const r = db.transaction('kv').objectStore('kv').get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async set(k, v){ const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
+};
+
+const S = { archiv: null, aufgaben: [], projekte: [], fehler: [], personen: null, filter: lsGet('buerokit-filter', 'alle'), suche: '', offen: new Set(), lesen: 0, gelesen: null, schreiben: 0 };
+const heute = () => { const d = new Date(), z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
+const deDatum = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}.${m[2]}.${m[1]}` : ''; };
+const deZeit = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+const kurzDatum = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }); };
+const ich = () => $('ich').value;
+const person = k => (S.personen || []).find(p => maNorm(p.ordnerKuerzel) === maNorm(k) || maNorm(p.appKuerzel) === maNorm(k));
+const nameVon = k => { const p = k && person(k); return p ? p.name : k; };
+
+function hinweis(art, html){ $('hinweise').insertAdjacentHTML('beforeend', `<div class="hinweis ${art}">${html}</div>`); }
+function hinweiseLeeren(){ $('hinweise').innerHTML = ''; }
+
+/* ---------- Archivordner ---------- */
+async function archivWaehlen(){
+  try{
+    const dir = await window.showDirectoryPicker({ mode: 'readwrite', id: 'buerokit-archiv' });
+    if (PROJ_RE.test(dir.name)){ alert(`„${dir.name}“ ist ein einzelner Projektordner. Bitte den Ordner darüber wählen, in dem alle Projekte liegen.`); return; }
+    await KV.set('archiv', dir).catch(() => {});
+    S.archiv = dir; await allesLesen();
+  }catch(e){ if (e.name !== 'AbortError') { hinweiseLeeren(); hinweis('err', 'Ordner konnte nicht geöffnet werden: ' + esc(e.message)); } }
+}
+async function start(){
+  $('version').textContent = 'BüroKit ' + APP_VERSION;
+  $('lnkRueckmeldung').href = '../rueckmeldung/?app=buerokit&version=' + APP_VERSION;
+  if (!('showDirectoryPicker' in window)){ $('start').hidden = false; $('btnArchiv2').hidden = true; $('startBrowser').hidden = false; $('btnArchiv').disabled = true; return; }
+  let a = null; try{ a = await KV.get('archiv'); }catch(e){}
+  if (!a){ $('start').hidden = false; return; }
+  S.archiv = a;
+  const st = await a.queryPermission({ mode: 'readwrite' }).catch(() => 'prompt');
+  if (st === 'granted'){ await allesLesen(); return; }
+  $('start').hidden = false; $('startRecht').hidden = false;
+  $('btnRecht').textContent = `Zugriff auf „${a.name}“ erlauben`;
+  $('btnRecht').onclick = async () => { const r = await a.requestPermission({ mode: 'readwrite' }).catch(() => 'denied'); if (r === 'granted') await allesLesen(); };
+}
+
+/* ---------- lesen ---------- */
+async function personenLaden(){
+  try{ const o = JSON.parse(await (await (await S.archiv.getFileHandle(MA_FILE)).getFile()).text());
+    S.personen = o && o.format === 'spektron-mitarbeiter' && Array.isArray(o.personen) ? o.personen.filter(p => p && typeof p.ordnerKuerzel === 'string' && p.ordnerKuerzel.trim() && p.aktiv !== false) : null;
+  }catch(e){ S.personen = null; }
+  const gewaehlt = lsGet('buerokit-ich', '');
+  const kuerzel = (S.personen || []).map(p => String(p.appKuerzel || p.ordnerKuerzel).trim());
+  if (gewaehlt && !kuerzel.includes(gewaehlt)) kuerzel.push(gewaehlt);
+  const opts = '<option value="">– Kürzel –</option>' + kuerzel.map(k => `<option value="${esc(k)}">${esc(k)}${person(k) && person(k).name ? ' · ' + esc(person(k).name) : ''}</option>`).join('') + '<option value="__neu">anderes Kürzel …</option>';
+  $('ich').innerHTML = opts; $('ich').value = gewaehlt;
+  $('neuFuer').innerHTML = '<option value="">– alle –</option>' + kuerzel.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+}
+async function allesLesen(stumm = false){
+  if (!S.archiv) return;
+  const lauf = ++S.lesen;
+  $('start').hidden = true; $('leiste').hidden = false;
+  if (!stumm) $('stand').textContent = 'Lese Projekte …';
+  try{
+    if ((await S.archiv.queryPermission({ mode: 'readwrite' })) !== 'granted'){ $('start').hidden = false; $('startRecht').hidden = false; $('leiste').hidden = true; return; }
+    await personenLaden();
+    const r = await B.archivLesen(S.archiv, stumm ? null : (i, n) => { if (lauf === S.lesen) $('stand').textContent = `Lese Projekte … ${i} von ${n}`; });
+    if (lauf !== S.lesen) return;
+    S.aufgaben = r.aufgaben; S.projekte = r.projekte; S.fehler = r.fehler; S.gelesen = new Date();
+    $('projektListe').innerHTML = S.projekte.map(n => `<option value="${esc(n)}"></option>`).join('');
+    zeichnen();
+  }catch(e){
+    if (lauf !== S.lesen) return;
+    hinweiseLeeren(); hinweis('err', `Der Archivordner „${esc(S.archiv.name)}“ ist gerade nicht erreichbar (${esc(e.message)}). Die Liste ist vielleicht nicht aktuell. <button class="link" id="nochmal">Erneut versuchen</button>`);
+    $('nochmal').onclick = () => allesLesen();
+    $('stand').textContent = S.gelesen ? 'Stand ' + S.gelesen.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' (veraltet)' : '';
+  }
+}
+/** Nur ein Projekt neu lesen (nach einem Haken) – schnell, der Rest bleibt. */
+async function projektNeu(name){
+  const dir = await S.archiv.getDirectoryHandle(name);
+  const r = await B.projektLesen(dir);
+  S.aufgaben = S.aufgaben.filter(a => a.projekt.name !== r.projekt.name).concat(r.aufgaben);
+  S.fehler = S.fehler.filter(f => !f.startsWith(r.projekt.name + ':')).concat(r.fehler);
+  zeichnen();
+}
+
+/* ---------- zeichnen ---------- */
+function meine(a){ const k = ich(); return !!k && (maNorm(a.fuer) === maNorm(k) || (a.uebernommen && maNorm(a.uebernommen.von) === maNorm(k))); }
+function passt(a){
+  if (S.filter === 'meine' && !meine(a)) return false;
+  const q = S.suche.trim().toLowerCase();
+  return !q || [a.projekt.name, a.titel, a.hinweis, a.von, a.fuer].join(' ').toLowerCase().includes(q);
+}
+function zeichnen(){
+  hinweiseLeeren();
+  const sichtbar = S.aufgaben.filter(a => !a.geloescht && passt(a)), t = heute();
+  const woche = new Date(Date.now() - 7 * 864e5).toISOString();
+  const offen = sichtbar.filter(a => !a.erledigt);
+  const gruppen = [
+    ['ueberfaellig', '⚠ Überfällig', offen.filter(a => a.faellig && a.faellig < t)],
+    ['heute', 'Heute fällig', offen.filter(a => a.faellig === t)],
+    ['offen', 'Offen', offen.filter(a => !a.faellig || a.faellig > t)]
+  ];
+  for (const g of gruppen) g[2].sort((a, b) => (a.faellig || '9999').localeCompare(b.faellig || '9999') || a.erstellt.localeCompare(b.erstellt));
+  const erledigt = sichtbar.filter(a => a.erledigt && a.erledigtAm >= woche).sort((a, b) => b.erledigtAm.localeCompare(a.erledigtAm));
+  let html = '';
+  for (const [k, titel, liste] of gruppen) if (liste.length) html += `<section class="gruppe ${k}"><h2>${titel}<span class="n">${liste.length}</span></h2>${liste.map(karte).join('')}</section>`;
+  if (!offen.length) html += `<p class="leer">${S.aufgaben.length ? (S.filter === 'meine' ? 'Für dich ist gerade nichts offen.' : 'Nichts offen – alles erledigt. 🎉') : 'Noch keine Aufgaben. Gutachten werden in der Projektzentrale „Ans Büro“ übergeben; eigene Aufgaben mit „＋ Aufgabe“.'}</p>`;
+  if (erledigt.length) html += `<details class="gruppe"${lsGet('buerokit-erledigt', '') === '1' ? ' open' : ''} id="erledigtBox"><summary>Erledigt in den letzten 7 Tagen (${erledigt.length})</summary>${erledigt.map(karte).join('')}</details>`;
+  $('liste').innerHTML = html;
+  if ($('erledigtBox')) $('erledigtBox').ontoggle = () => lsSet('buerokit-erledigt', $('erledigtBox').open ? '1' : '');
+  if (S.fehler.length) hinweis('', `${S.fehler.length} Datei${S.fehler.length === 1 ? '' : 'en'} konnte${S.fehler.length === 1 ? '' : 'n'} nicht gelesen werden – die übrigen Aufgaben stimmen. <details><summary>Welche?</summary>${S.fehler.slice(0, 30).map(f => '<div>' + esc(f) + '</div>').join('')}</details>`);
+  if (!ich()) hinweis('', 'Bitte oben bei „Ich bin“ dein Kürzel wählen – dann stehen an jedem Haken Name und Zeit.');
+  $('stand').textContent = S.gelesen ? 'Stand ' + S.gelesen.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+  document.querySelectorAll('.chips [data-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filter === S.filter)));
+}
+function schrittHtml(a, schritt, label, an, extra = ''){
+  const dis = S.schreiben ? ' aria-disabled="true"' : '';
+  return `<label class="schritt${an ? ' an' : ''}"${dis} title="${an ? esc(`${label}: ${nameVon(an.von)} · ${deZeit(an.zeit)}`) : esc(label + ' – noch offen')}"><input type="checkbox" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" data-s="${schritt}"${an ? ' checked' : ''}${S.schreiben ? ' disabled' : ''}>${esc(label)}${extra}</label>`;
+}
+function karte(a){
+  const l = leseProjektordner(a.projekt.name, S.personen) || { nr: a.projekt.nr, ort: a.projekt.name, kuerzel: '' };
+  const t = heute(), offen = S.offen.has(a.id);
+  const faellig = a.faellig ? (a.faellig < t && !a.erledigt ? `<span class="badge ueberfaellig">fällig seit ${deDatum(a.faellig)}</span>` : a.faellig === t && !a.erledigt ? '<span class="badge heute">heute fällig</span>' : `<span class="badge bearbeitet">fällig ${deDatum(a.faellig)}</span>`) : '';
+  const frage = a.frage ? '<span class="badge frage">Rückfrage offen</span>' : '';
+  const bearbeitet = a.uebernommen && !a.erledigt ? `<span class="badge bearbeitet">${esc(nameVon(a.uebernommen.von))} bearbeitet</span>` : '';
+  let schritte;
+  if (a.art === 'gutachten'){
+    const n = a.empfaenger.length, v = Object.keys(a.versand).length;
+    schritte = schrittHtml(a, 'gegenlesen', 'Gegenlesen', a.gegenlesen) + schrittHtml(a, 'pdf', 'PDF', a.pdf)
+      + `<button class="schritt${v && v === n ? ' an' : v ? ' teil' : ''}" data-mehr="${esc(a.id)}" aria-expanded="${offen}" title="Versand je Empfänger">Versand ${v}/${n} ${offen ? '▴' : '▾'}</button>`;
+  } else schritte = schrittHtml(a, 'erledigt', 'Erledigt', a.erledigt ? { von: (a.verlauf.filter(x => x.schritt === 'erledigt').pop() || {}).von || '', zeit: a.erledigtAm } : null);
+  const wer = l.kuerzel ? `<span class="wer">· ${esc(nameVon(l.kuerzel))}</span>` : '';
+  return `<article class="aufgabe${a.erledigt ? ' erledigt' : ''}${a.frage ? ' frage' : ''}" data-id="${esc(a.id)}">
+    <div class="kopf">
+      <div class="was">
+        <div class="projekt"><span class="nr">${esc(l.nr)}</span>${esc(l.ort)}${wer}</div>
+        <div class="titel">${esc(a.titel)}${faellig}${frage}${bearbeitet}</div>
+        <div class="meta">${a.art === 'gutachten' ? 'übergeben' : 'angelegt'} von ${esc(nameVon(a.von) || '–')} am ${kurzDatum(a.erstellt)}${a.fuer ? ' · für ' + esc(nameVon(a.fuer)) : ''}${a.hinweis ? ' · „' + esc(a.hinweis) + '“' : ''}</div>
+      </div>
+      <div class="schritte">${schritte}<button class="toggle" data-mehr="${esc(a.id)}" aria-expanded="${offen}" title="Details, Rückfrage, Fälligkeit">${offen ? 'weniger' : 'mehr'}</button></div>
+    </div>
+    <div class="mehr"${offen ? '' : ' hidden'}>${offen ? details(a) : ''}</div>
+  </article>`;
+}
+function details(a){
+  let h = '';
+  if (a.word) h += `<div class="zeile"><span class="lbl">Word-Datei</span><span class="pfad">${esc(a.word)}</span><button class="link" data-kopie="${esc(a.word)}">kopieren</button></div>`;
+  if (a.pdf && a.pdf.pdf) h += `<div class="zeile"><span class="lbl">PDF</span><span class="pfad">${esc(a.pdf.pdf)}</span></div>`;
+  if (a.art === 'gutachten'){
+    h += `<div class="zeile"><span class="lbl">Versand an</span></div><div class="empf">${a.empfaenger.map(r => { const v = a.versand[r.id];
+      return `<label class="${v ? 'an' : ''}"><input type="checkbox" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" data-s="versand" data-e="${esc(r.id)}"${v ? ' checked' : ''}${S.schreiben ? ' disabled' : ''}><span><b>${esc(r.label || r.gruppe)}</b><span class="adr">${esc(r.details)}</span>${v ? `<small>versandt ${v.datum ? deDatum(v.datum) : kurzDatum(v.zeit)} · ${esc(nameVon(v.von))}</small>` : ''}</span></label>`; }).join('')}</div>`;
+  }
+  const dialog = a.verlauf.filter(v => v.schritt === 'frage' || v.schritt === 'antwort');
+  if (dialog.length) h += `<div class="dialog">${dialog.map(v => `<div class="eintrag ${v.schritt}"><b>${v.schritt === 'frage' ? 'Rückfrage' : 'Antwort'}</b> · ${esc(nameVon(v.von))}, ${deZeit(v.zeit)}<br>${esc(v.text)}</div>`).join('')}</div>`;
+  h += `<div class="aktionen">
+    ${!a.erledigt && !(a.uebernommen && maNorm(a.uebernommen.von) === maNorm(ich())) ? `<button data-akt="uebernehmen" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}">Ich mache das</button>` : ''}
+    ${a.frage ? `<button data-akt="antwort" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}">Rückfrage beantworten</button>` : `<button data-akt="frage" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}">Rückfrage stellen</button>`}
+    <label class="zeile" style="gap:5px">Fällig <input type="date" data-akt="faellig" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" value="${esc(a.faellig)}"></label>
+    ${a.art === 'gutachten' && !a.erledigt ? `<button data-akt="erledigt" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" title="z. B. wenn der Versand außerhalb erledigt wurde">Als erledigt markieren</button>` : ''}
+    ${a.art === 'gutachten' && a.erledigt && a.verlauf.some(v => v.schritt === 'erledigt' && v.wert) ? `<button data-akt="wiederoeffnen" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}">Wieder öffnen</button>` : ''}
+    <button data-akt="loeschen" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" title="Aufgabe aus der Liste nehmen (bleibt im Projektordner nachvollziehbar)">Entfernen</button>
+  </div>`;
+  if (a.verlauf.length) h += `<details class="verlauf"><summary>Verlauf (${a.verlauf.length})</summary><ul>${a.verlauf.map(v => `<li>${deZeit(v.zeit)} · ${esc(nameVon(v.von))}: ${esc(verlaufText(a, v))}</li>`).join('')}</ul></details>`;
+  return h;
+}
+function verlaufText(a, v){
+  const r = v.empfaenger && a.empfaenger.find(x => x.id === v.empfaenger);
+  const namen = { gegenlesen: 'Gegenlesen', pdf: 'PDF', versand: 'Versand' + (r ? ' an ' + (r.label || r.gruppe) : ''), erledigt: 'Erledigt', uebernommen: 'übernommen', faellig: 'Fälligkeit', geloescht: 'entfernt', frage: 'Rückfrage', antwort: 'Antwort' };
+  if (v.schritt === 'faellig') return v.wert && v.datum ? 'fällig am ' + deDatum(v.datum) : 'Fälligkeit entfernt';
+  if (v.schritt === 'frage' || v.schritt === 'antwort') return namen[v.schritt] + ': ' + v.text;
+  return namen[v.schritt] + (v.wert ? ' ✓' : ' zurückgenommen');
+}
+
+/* ---------- schreiben ---------- */
+async function vermerk(projekt, v){
+  if (!ich()){ zeichnen(); hinweis('err', 'Bitte zuerst oben bei „Ich bin“ dein Kürzel wählen.'); $('ich').focus(); return false; }
+  S.schreiben++;
+  document.querySelectorAll('#liste input, #liste button[data-akt]').forEach(el => { el.disabled = true; });   // kein Doppelklick, bis gespeichert ist
+  try{
+    const dir = await S.archiv.getDirectoryHandle(projekt);
+    await B.vermerken(dir, { ...v, von: ich() });
+    await projektNeu(projekt);
+    return true;
+  }catch(e){
+    zeichnen(); hinweis('err', `Nicht gespeichert (${esc(projekt)}): ${esc(e.message)} – bitte erneut versuchen.`);
+    return false;
+  }finally{ S.schreiben--; if (!S.schreiben) zeichnen(); }
+}
+function textFragen(titel, frage, vorgabe = ''){
+  return new Promise(res => {
+    $('textTitel').textContent = titel; $('textFrage').textContent = frage; $('textFeld').value = vorgabe;
+    $('textAbbrechen').onclick = () => { $('dlgText').close(); res(null); };
+    $('formText').onsubmit = e => { e.preventDefault(); const t = $('textFeld').value.trim(); if (!t) return; $('dlgText').close(); res(t); };
+    $('dlgText').oncancel = () => res(null);
+    $('dlgText').showModal(); $('textFeld').focus();
+  });
+}
+$('liste').addEventListener('change', async e => {
+  const el = e.target;
+  if (el.matches('input[type=checkbox][data-s]')){
+    const an = el.checked;
+    if (!(await vermerk(el.dataset.p, { aufgabe: el.dataset.a, schritt: el.dataset.s, wert: an, ...(el.dataset.e ? { empfaenger: el.dataset.e, ...(an ? { datum: heute() } : {}) } : {}) }))) el.checked = !an;
+  } else if (el.matches('input[data-akt="faellig"]')){
+    await vermerk(el.dataset.p, { aufgabe: el.dataset.a, schritt: 'faellig', wert: !!el.value, ...(el.value ? { datum: el.value } : {}) });
+  }
+});
+$('liste').addEventListener('click', async e => {
+  const m = e.target.closest('[data-mehr]');
+  if (m){ const id = m.dataset.mehr; if (S.offen.has(id)) S.offen.delete(id); else S.offen.add(id); zeichnen(); return; }
+  const k = e.target.closest('[data-kopie]');
+  if (k){ try{ await navigator.clipboard.writeText(k.dataset.kopie); k.textContent = 'kopiert ✓'; }catch(x){ k.textContent = 'bitte markieren und kopieren'; } return; }
+  const b = e.target.closest('button[data-akt]');
+  if (!b) return;
+  const p = b.dataset.p, a = b.dataset.a;
+  if (b.dataset.akt === 'uebernehmen') await vermerk(p, { aufgabe: a, schritt: 'uebernommen' });
+  else if (b.dataset.akt === 'erledigt') await vermerk(p, { aufgabe: a, schritt: 'erledigt' });
+  else if (b.dataset.akt === 'wiederoeffnen') await vermerk(p, { aufgabe: a, schritt: 'erledigt', wert: false });
+  else if (b.dataset.akt === 'frage'){ const t = await textFragen('Rückfrage', 'Was soll der Sachverständige klären? (erscheint auch in der Projektzentrale)'); if (t) await vermerk(p, { aufgabe: a, schritt: 'frage', text: t }); }
+  else if (b.dataset.akt === 'antwort'){ const t = await textFragen('Rückfrage beantworten', 'Antwort'); if (t) await vermerk(p, { aufgabe: a, schritt: 'antwort', text: t }); }
+  else if (b.dataset.akt === 'loeschen'){ if (confirm('Diese Aufgabe aus der Liste nehmen? Sie bleibt im Projektordner nachvollziehbar.')) await vermerk(p, { aufgabe: a, schritt: 'geloescht' }); }
+});
+$('btnNeu').onclick = () => {
+  $('neuFehler').hidden = true; $('formNeu').reset(); $('neuFaellig').value = heute(); $('neuFuer').value = ich() && [...$('neuFuer').options].some(o => o.value === ich()) ? ich() : '';
+  $('dlgNeu').showModal(); $('neuProjekt').focus();
+};
+$('neuAbbrechen').onclick = () => $('dlgNeu').close();
+$('formNeu').onsubmit = async e => {
+  e.preventDefault();
+  const fehler = t => { $('neuFehler').textContent = t; $('neuFehler').hidden = false; };
+  if (!ich()) return fehler('Bitte zuerst oben bei „Ich bin“ dein Kürzel wählen.');
+  const eingabe = $('neuProjekt').value.trim().normalize('NFC');
+  const name = S.projekte.find(n => n === eingabe) || S.projekte.find(n => n.startsWith(eingabe + ' ')) || S.projekte.find(n => (leseProjektordner(n) || {}).nr === eingabe);
+  if (!name) return fehler(`Projekt „${eingabe}“ nicht gefunden – bitte aus der Liste wählen (z. B. „26.0123“).`);
+  $('neuOk').disabled = true;
+  try{
+    const dir = await S.archiv.getDirectoryHandle(name);
+    await B.aufgabeAnlegen(dir, { art: 'eigene', titel: $('neuTitel').value, von: ich(), fuer: $('neuFuer').value, faellig: $('neuFaellig').value, hinweis: $('neuHinweis').value });
+    $('dlgNeu').close(); await projektNeu(name);
+  }catch(x){ fehler('Nicht gespeichert: ' + x.message); }
+  finally{ $('neuOk').disabled = false; }
+};
+$('ich').onchange = () => {
+  if ($('ich').value === '__neu'){
+    const k = (prompt('Dein Kürzel (z. B. „Nad“):') || '').trim().slice(0, 12);
+    lsSet('buerokit-ich', k); personenLaden().then(zeichnen); return;
+  }
+  lsSet('buerokit-ich', $('ich').value); zeichnen();
+};
+document.querySelectorAll('.chips [data-filter]').forEach(b => b.onclick = () => { S.filter = b.dataset.filter; lsSet('buerokit-filter', S.filter); zeichnen(); });
+$('suche').oninput = () => { S.suche = $('suche').value; zeichnen(); };
+$('btnArchiv').onclick = $('btnArchiv2').onclick = archivWaehlen;
+$('btnAktualisieren').onclick = () => allesLesen();
+// aktuell halten: beim Zurückkommen und jede Minute, solange das Fenster sichtbar ist (nur die kleinen „_Buero“-Dateien)
+const leise = () => { if (S.archiv && !S.schreiben && !document.hidden && !document.querySelector('dialog[open]') && !$('liste').contains(document.activeElement)) allesLesen(true); };
+window.addEventListener('focus', leise);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) leise(); });
+setInterval(leise, 60000);
+start();
+</script>
+</body>
+</html>
