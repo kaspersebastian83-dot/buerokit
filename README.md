@@ -1,8 +1,12 @@
 # BüroKit – Aufgaben des Büros
 
-**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.0.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
+**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.0.1** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
 
 Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, offen und erledigt.
+
+## Neu in 1.0.1 · 27.10.2026
+
+- Frühere Büroübergaben (Projektzentrale bis 1.27) mit mehreren neuen Fassungen: Die Änderungen werden jetzt in zeitlicher Reihenfolge gelesen. Vorher konnte je nach Dateisystem eine ältere Word-Datei (samt Empfängern und Hinweis) als aktuelle erscheinen. Gemeinsames Modul `buero-aufgaben.js` – byte-gleich in der Projektzentrale.
 
 ## So geht's
 
