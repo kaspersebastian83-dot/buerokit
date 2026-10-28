@@ -23,6 +23,26 @@ async function unter(dir, name){
 async function datei(dir, name){
   try{ return await (await dir.getFileHandle(name)).getFile(); }catch(e){ if (fehlt(e)) return null; throw e; }
 }
+/* Spektron-Ordner (spektron-ordner.js, falls geladen): Die App-Daten liegen künftig in „<Projekt>/_Spektron/…“.
+   In den Ständen stehen weiter die festen Namen („Abrechnung/…“, „Laboraufträge/…“, „Fotos/_Bildumbenenner.json“,
+   „_Projekt.json“) – hier wird daraus der tatsächliche Ort. So bleiben auch Stände von vor dem Umzug prüfbar. */
+async function bereichDir(projektDir, bereich, altOrdner){
+  const SO = root.SpektronOrdner;
+  if (!SO) return altOrdner ? unter(projektDir, altOrdner) : projektDir;
+  return (await SO.ort(projektDir, bereich)).dir;
+}
+const FESTE_NAMEN = [['', '_Projekt.json', 'projekt'], [ORDNER, null, 'belegkit'], ['Laboraufträge', /_Daten\.json$/i, 'labelkit'], ['Fotos', '_Bildumbenenner.json', 'fotokit']];
+async function quelleLesen(projektDir, pfad){
+  const teile = pfad.split('/'), name = teile[teile.length - 1], ordner = teile.slice(0, -1).join('/');
+  for (const [o, n, bereich] of FESTE_NAMEN){
+    if (ordner !== o || (n && (typeof n === 'string' ? n !== name : !n.test(name)))) continue;
+    const dir = await bereichDir(projektDir, bereich, o);
+    return dir ? datei(dir, name) : null;
+  }
+  let dir = projektDir;
+  for (const t of teile.slice(0, -1)){ dir = dir && await unter(dir, t); }
+  return dir ? datei(dir, name) : null;
+}
 async function sha256(file){
   const c = (root.crypto || globalThis.crypto).subtle;
   const b = new Uint8Array(await c.digest('SHA-256', await file.arrayBuffer()));
@@ -53,7 +73,7 @@ function standPruefen(o, projektName){
 
 /** Neuester lesbarer Stand: {stand, datei, anzahl, fehler} – stand null, wenn es keinen gibt. */
 async function neuesterStand(projektDir){
-  const abr = await unter(projektDir, ORDNER), fehler = [];
+  const abr = await bereichDir(projektDir, 'belegkit', ORDNER), fehler = [];
   if (!abr) return { stand: null, datei: '', anzahl: 0, fehler };
   const namen = [];
   for await (const h of abr.values()){ const m = h.kind === 'file' && STAND.exec(h.name); if (m) namen.push({ name: h.name, datum: m[2], n: +(m[3] || 1) }); }
@@ -95,11 +115,7 @@ async function standVergleichen(projektDir, stand, archivDir){
     let f = null;
     try{
       if (q.datei.startsWith(EINST)) f = archivDir ? await datei(archivDir, EINST) : undefined;
-      else {
-        const teile = q.datei.split('/'); let dir = projektDir;
-        for (const t of teile.slice(0, -1)){ dir = dir && await unter(dir, t); }
-        f = dir ? await datei(dir, teile[teile.length - 1]) : null;
-      }
+      else f = await quelleLesen(projektDir, q.datei);
     }catch(e){ ungeprueft.push(`${quelleName(q.datei)}: nicht lesbar (${e.message})`); continue; }
     if (f === undefined){ ungeprueft.push(`${quelleName(q.datei)}: Archivordner nicht verfügbar`); continue; }
     if (!f){ geaendert.push(`${quelleName(q.datei)} gibt es nicht mehr`); continue; }
@@ -107,7 +123,7 @@ async function standVergleichen(projektDir, stand, archivDir){
   }
   // Neue Dateien, die BelegKit beim Stand noch nicht kannte
   try{
-    const abr = await unter(projektDir, ORDNER);
+    const abr = await bereichDir(projektDir, 'belegkit', ORDNER);
     if (abr) for await (const h of abr.values()){
       if (h.kind !== 'file') continue;
       const pfad = ORDNER + '/' + h.name;
@@ -115,7 +131,7 @@ async function standVergleichen(projektDir, stand, archivDir){
     }
   }catch(e){ ungeprueft.push(`Abrechnung: nicht lesbar (${e.message})`); }
   try{
-    const la = await unter(projektDir, 'Laboraufträge'), t = Date.parse(stand.erstellt);
+    const la = await bereichDir(projektDir, 'labelkit', 'Laboraufträge'), t = Date.parse(stand.erstellt);
     if (la && Number.isFinite(t)) for await (const h of la.values()){
       if (h.kind !== 'file' || !/_Daten\.json$/i.test(h.name) || bekannt.has('Laboraufträge/' + h.name)) continue;
       const f = await datei(la, h.name);
@@ -138,7 +154,7 @@ function zahlText(v){
  * hotelBetrag, termine: [Datum], geaendert, unklar}], fehler: [Text]}. Ortstermin = Titel 1 (…1), Auswertung/Bericht = Titel 3 (…3).
  */
 async function jePerson(projektDir){
-  const abr = await unter(projektDir, ORDNER), personen = [], fehler = [];
+  const abr = await bereichDir(projektDir, 'belegkit', ORDNER), personen = [], fehler = [];
   if (!abr) return { personen, fehler };
   for await (const h of abr.values()){
     const m = h.kind === 'file' && ZEITEN.exec(h.name);
