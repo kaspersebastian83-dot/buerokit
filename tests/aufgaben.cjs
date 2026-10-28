@@ -57,8 +57,10 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
     });
 
     await ok('Rechnung: eigener Haken mit BelegKit-Stand; erst dann abgeschlossen; wieder wegnehmen geht', async () => {
+      const versandtAm = (await B.projektLesen(p)).aufgaben[0].erledigtAm; await new Promise(r => setTimeout(r, 15));
       await B.vermerken(p, { aufgabe: a.id, schritt: 'rechnung', von: 'Nad', stand: 'Abrechnung/26.0101_Aufwand_2026-10-28.json' });
       let x = (await B.projektLesen(p)).aufgaben[0];
+      assert.equal(x.erledigtAm, versandtAm, 'erledigt = versandt: Rechnung verschiebt den Zeitpunkt nicht'); assert.ok(x.abgeschlossenAm > versandtAm);
       assert.equal(x.rechnung.von, 'Nad'); assert.equal(x.rechnung.stand, 'Abrechnung/26.0101_Aufwand_2026-10-28.json');
       assert.equal(x.abgeschlossen, true); assert.ok(x.abgeschlossenAm >= x.erledigtAm); assert.equal(B.offenText(x), 'erledigt');
       await B.vermerken(p, { aufgabe: a.id, schritt: 'rechnung', wert: false, von: 'Nad' });

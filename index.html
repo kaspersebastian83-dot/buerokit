@@ -406,7 +406,7 @@ async function abrLesen(projekt, erzwingen = false){
   try{
     const dir = await S.archiv.getDirectoryHandle(projekt);
     const r = await R.neuesterStand(dir);
-    const v = r.stand ? await R.standVergleichen(dir, r.stand, S.archiv) : null;
+    const v = r.stand ? R.standBewerten(r, await R.standVergleichen(dir, r.stand, S.archiv)) : null;
     if (S.abr.get(projekt) !== e) return;
     e.r = r; e.v = v;
   }catch(x){ if (S.abr.get(projekt) === e) e.fehler = x.message || String(x); }

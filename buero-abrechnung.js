@@ -126,11 +126,19 @@ async function standVergleichen(projektDir, stand, archivDir){
 
 /** Wie „Kopieren“ in BelegKit: Position, Text, Menge, Einheit – tabulatorgetrennt fürs Rechnungsprogramm oder Excel. */
 function tsv(stand){
+  // Tabulator und Zeilenumbruch in einer Zelle würden beim Einfügen Spalten bzw. Zeilen verschieben
+  const zelle = s => String(s == null ? '' : s).replace(/\r?\n/g, ' – ').replace(/[\t\r\n]+/g, ' ').trim();
   const z = ['Position\tText\tMenge\tEinheit'];
-  for (const ti of stand.titel){ z.push(`Titel ${ti.nr}\t${ti.text.replace(/\n/g, ' – ')}\t\t`); for (const x of ti.zeilen) z.push([x.nr, x.text, fmt(x.menge), x.einheit].join('\t')); }
+  for (const ti of stand.titel){ z.push([`Titel ${zelle(ti.nr)}`, zelle(ti.text), '', ''].join('\t')); for (const x of ti.zeilen) z.push([x.nr, x.text, fmt(x.menge), x.einheit].map(zelle).join('\t')); }
   return z.join('\r\n') + '\r\n';
 }
 
-const api = { ORDNER, neuesterStand, standVergleichen, standPruefen, quelleName, tsv, fmt, euro };
+/** Ist ein neuerer Stand unlesbar oder aus einem anderen Projekt, gilt der ältere nicht als aktuell (sonst Rechnung vom veralteten Stand). */
+function standBewerten(r, v){
+  if (!v || !r || !r.fehler || !r.fehler.length) return v;
+  return { ...v, aktuell: false, ungeprueft: [...v.ungeprueft, ...r.fehler.map(f => `Neuerer Abrechnungsstand nicht verwendbar – ${f}`)] };
+}
+
+const api = { ORDNER, neuesterStand, standVergleichen, standBewerten, standPruefen, quelleName, tsv, fmt, euro };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.BueroAbrechnung = api;
 })(typeof window !== 'undefined' ? window : globalThis);

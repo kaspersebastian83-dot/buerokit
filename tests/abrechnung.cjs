@@ -81,6 +81,16 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
       const r = await R.neuesterStand(projekt);
       assert.equal(r.datei, 'Abrechnung/26.0560_Aufwand_2026-10-28_2.json'); assert.equal(r.fehler.length, 2);
       assert.match(r.fehler.join('\n'), /gehört zu „26\.0999 Anderswo“/);
+      const v = R.standBewerten(r, { aktuell: true, geaendert: [], ungeprueft: [] });
+      assert.equal(v.aktuell, false, 'neuerer Stand unbrauchbar: älterer gilt nicht als aktuell'); assert.equal(v.ungeprueft.length, 2); assert.match(v.ungeprueft[0], /^Neuerer Abrechnungsstand nicht verwendbar – /);
+      assert.equal(R.standBewerten({ fehler: [] }, { aktuell: true, geaendert: [], ungeprueft: [] }).aktuell, true);
+    });
+
+    await ok('Kopieren: Tabulator und Zeilenumbruch in Texten verschieben keine Spalten oder Zeilen', async () => {
+      const t = R.tsv({ titel: [{ nr: 1, text: 'Ortstermin\nZeit\taufwand', zeilen: [{ nr: '1.001', text: 'Sachverständiger\tvor Ort\r\nund Büro', menge: 2.5, einheit: 'Std.\n' }] }] });
+      const zeilen = t.trimEnd().split('\r\n');
+      assert.equal(zeilen.length, 3); assert.ok(zeilen.every(z => z.split('\t').length === 4), zeilen.join(' | '));
+      assert.equal(zeilen[1], 'Titel 1\tOrtstermin – Zeit aufwand\t\t'); assert.equal(zeilen[2].split('\t')[1], 'Sachverständiger vor Ort – und Büro');
     });
 
     console.log(`${n} Prüfungen Abrechnung bestanden`);
