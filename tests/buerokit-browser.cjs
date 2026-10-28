@@ -93,6 +93,17 @@ let browser, server;
     const w = await (await abr.getFileHandle('Aufwand_NAD.json', { create: true })).createWritable(); await w.write('{}'); await w.close(); });
   await k1.locator('[data-abr-neu]').click();
   await k1.locator('.ampel.warn', { hasText: 'Zeiten NAD neu seit dem Stand' }).waitFor();
+  // je Person: zugeklappt, Name aus der Mitarbeiterliste, Werte aus der Zeitdatei
+  await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const abr = await (await r.getDirectoryHandle('26.0101 Musterstadt Ben')).getDirectoryHandle('Abrechnung');
+    const w = await (await abr.getFileHandle('Aufwand_NAD.json', { create: true })).createWritable();
+    await w.write(JSON.stringify({ format: 'aufwandkit-zeiten', version: 1, eintraege: [{ datum: '2026-10-21', art: 'ort', rolle: 'Probenehmer', stunden: '3,5', km: '84' }] })); await w.close(); });
+  await k1.locator('[data-abr-neu]').click();
+  await k1.locator('details.person').waitFor();
+  assert.equal(await k1.locator('details.person').evaluate(d => d.open), false, 'je Person zugeklappt');
+  await k1.locator('details.person > summary').click();
+  assert.match(await k1.locator('details.person tbody').innerText(), /Nadine Test\s+–\s+3,5\s+–\s+–\s+84/);
+  await k1.locator('[data-abr-neu]').click(); await page.waitForTimeout(300);
+  assert.equal(await k1.locator('details.person').evaluate(d => d.open), true, 'bleibt nach „neu lesen“ offen');
   ok('Abrechnung aus dem BelegKit-Stand; neue Zeitdatei danach wird gemeldet');
 
   // Rechnung abhaken (Warnung bestätigen) → abgeschlossen, mit Stand im Vermerk

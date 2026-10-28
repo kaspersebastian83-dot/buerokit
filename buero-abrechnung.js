@@ -5,7 +5,8 @@
    Das Büro überträgt die Positionen ins Rechnungsprogramm. Damit es nicht nach einem veralteten Stand abrechnet, werden die
    Quellen des Stands (Zeiten der Kollegen, LabelKit-Proben, Berichte, Fotos, Einstellungen) erneut gelesen und mit den
    gespeicherten Prüfsummen verglichen; neue Zeitdateien, die im Stand fehlen, werden ebenfalls gemeldet.
-   Gezeigt werden nur die Positionen der Rechnung (Summen je Position) – keine Stunden einzelner Kollegen.
+   Die Positionen der Rechnung stehen oben; „je Person“ (Stunden, km, Spesen, Übernachtungen je Kürzel, aus
+   Abrechnung/Aufwand_<Kürzel>.json) ist nur fürs Büro und standardmäßig zugeklappt.
    Läuft im Browser (window.BueroAbrechnung) und in Node (module.exports, für Tests). */
 (function(root){
 'use strict';
@@ -124,6 +125,48 @@ async function standVergleichen(projektDir, stand, archivDir){
   return { aktuell: !geaendert.length && !ungeprueft.length, geaendert, ungeprueft };
 }
 
+/** Zahl wie in BelegKit: „7,5“ oder „7.5“; leer = 0; „1.250“ (mehrdeutig) oder Unlesbares = NaN. */
+function zahlText(v){
+  const r = str(v).trim().replace(/\s/g, '');
+  if (!r) return 0;
+  if (/^-?\d{1,3}(\.\d{3})+$/.test(r)) return NaN;
+  const s = r.replace(',', '.');
+  return /^-?\d+(\.\d+)?$/.test(s) ? Number(s) : NaN;
+}
+/**
+ * Zeiten je Person aus Abrechnung/Aufwand_<Kürzel>.json → {personen: [{kuerzel, sv1, pn1, sv3, pn3, km, spesen, hotelAnzahl,
+ * hotelBetrag, termine: [Datum], geaendert, unklar}], fehler: [Text]}. Ortstermin = Titel 1 (…1), Auswertung/Bericht = Titel 3 (…3).
+ */
+async function jePerson(projektDir){
+  const abr = await unter(projektDir, ORDNER), personen = [], fehler = [];
+  if (!abr) return { personen, fehler };
+  for await (const h of abr.values()){
+    const m = h.kind === 'file' && ZEITEN.exec(h.name);
+    if (!m) continue;
+    const kuerzel = m[1].toUpperCase();
+    try{
+      const f = await datei(abr, h.name);
+      if (!f) continue;
+      if (f.size > MAX_STAND) throw Error('Datei ist zu groß');
+      const o = JSON.parse(await f.text());
+      if (!o || o.format !== 'aufwandkit-zeiten' || !Array.isArray(o.eintraege)) throw Error('unbekanntes Format');
+      const p = { kuerzel, sv1: 0, pn1: 0, sv3: 0, pn3: 0, km: 0, spesen: 0, hotelAnzahl: 0, hotelBetrag: 0, termine: [], geaendert: str(o.geaendert), unklar: 0 };
+      const termine = new Set();
+      for (const e of o.eintraege){
+        if (!e || typeof e !== 'object') continue;
+        const n = feld => { const x = zahlText(e[feld]); if (Number.isNaN(x) || x < 0){ p.unklar++; return 0; } return x; };
+        const art = e.art === 'buero' ? 3 : 1, rolle = e.rolle === 'Probenehmer' ? 'pn' : 'sv';
+        p[rolle + art] += n('stunden'); p.km += n('km'); p.spesen += n('spesen'); p.hotelAnzahl += n('hotelAnzahl'); p.hotelBetrag += n('hotelBetrag');
+        if (art === 1 && /^\d{4}-\d{2}-\d{2}$/.test(str(e.datum))) termine.add(e.datum);
+      }
+      p.termine = [...termine].sort();
+      personen.push(p);
+    }catch(e){ fehler.push(`${h.name}: ${e.message}`); }
+  }
+  personen.sort((a, b) => a.kuerzel.localeCompare(b.kuerzel, 'de'));
+  return { personen, fehler };
+}
+
 /** Wie „Kopieren“ in BelegKit: Position, Text, Menge, Einheit – tabulatorgetrennt fürs Rechnungsprogramm oder Excel. */
 function tsv(stand){
   // Tabulator und Zeilenumbruch in einer Zelle würden beim Einfügen Spalten bzw. Zeilen verschieben
@@ -139,6 +182,6 @@ function standBewerten(r, v){
   return { ...v, aktuell: false, ungeprueft: [...v.ungeprueft, ...r.fehler.map(f => `Neuerer Abrechnungsstand nicht verwendbar – ${f}`)] };
 }
 
-const api = { ORDNER, neuesterStand, standVergleichen, standBewerten, standPruefen, quelleName, tsv, fmt, euro };
+const api = { ORDNER, neuesterStand, standVergleichen, standBewerten, standPruefen, quelleName, jePerson, zahlText, tsv, fmt, euro };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.BueroAbrechnung = api;
 })(typeof window !== 'undefined' ? window : globalThis);

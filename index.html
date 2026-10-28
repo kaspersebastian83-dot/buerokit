@@ -113,6 +113,8 @@ details.gruppe>summary{cursor:pointer;font-size:12px;text-transform:uppercase;le
 .ampel{font-size:13px;margin:2px 0}
 .ampel.ok{color:var(--ok)} .ampel.warn{color:var(--warn)}
 .ampel ul{margin:3px 0 0;padding-left:18px}
+details.person{margin-top:8px;font-size:13px}
+details.person>summary{cursor:pointer;color:var(--accent)}
 dialog{border:1px solid var(--line2);border-radius:12px;padding:0;max-width:560px;width:calc(100% - 30px);background:var(--panel);color:var(--text);box-shadow:0 10px 40px rgba(0,0,0,.25)}
 dialog::backdrop{background:rgba(20,30,45,.4)}
 dialog form{padding:18px 20px;display:grid;gap:10px}
@@ -182,7 +184,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 20px 30px;color:var(--muted);fon
 <script src="buero-abrechnung.js"></script>
 <script>
 'use strict';
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const B = window.BueroAufgaben, R = window.BueroAbrechnung;
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -401,20 +403,36 @@ function anlagenHtml(a){
 async function abrLesen(projekt, erzwingen = false){
   const alt = S.abr.get(projekt);
   if (alt && !erzwingen && (alt.laeuft || Date.now() - alt.zeit < 60000)) return;
-  const e = { lauf: (alt ? alt.lauf : 0) + 1, laeuft: true, zeit: Date.now(), r: alt && alt.r, v: alt && alt.v, fehler: '' };
+  const e = { lauf: (alt ? alt.lauf : 0) + 1, laeuft: true, zeit: Date.now(), r: alt && alt.r, v: alt && alt.v, jp: alt && alt.jp, fehler: '', personOffen: !!(alt && alt.personOffen) };
   S.abr.set(projekt, e);
   try{
     const dir = await S.archiv.getDirectoryHandle(projekt);
     const r = await R.neuesterStand(dir);
     const v = r.stand ? R.standBewerten(r, await R.standVergleichen(dir, r.stand, S.archiv)) : null;
+    let jp; try{ jp = await R.jePerson(dir); }catch(x){ jp = { personen: [], fehler: [x.message] }; }
     if (S.abr.get(projekt) !== e) return;
-    e.r = r; e.v = v;
+    e.r = r; e.v = v; e.jp = jp;
   }catch(x){ if (S.abr.get(projekt) === e) e.fehler = x.message || String(x); }
   e.laeuft = false; e.zeit = Date.now();
   if (S.abr.get(projekt) === e) abrZeigen(projekt);
 }
 function abrZeigen(projekt){
   document.querySelectorAll('[data-abr]').forEach(el => { if (el.dataset.abr === projekt){ const a = S.aufgaben.find(x => x.id === el.dataset.aufgabe); if (a) el.outerHTML = abrechnungHtml(a); } });
+}
+/** Stunden, km, Spesen je Person – nur fürs Büro, zugeklappt. Summen müssen zu Titel 1 und 3 der Abrechnung passen. */
+function jePersonHtml(p, jp, offen){
+  if (!jp || (!jp.personen.length && !jp.fehler.length)) return '';
+  const f = x => x ? esc(R.fmt(x)) : '–';
+  const sp = (a, k) => a.reduce((s, x) => s + x[k], 0);
+  const L = jp.personen;
+  const zeile = (name, x, termine) => `<tr><td>${name}</td><td class="r">${f(x.sv1)}</td><td class="r">${f(x.pn1)}</td><td class="r">${f(x.sv3)}</td><td class="r">${f(x.pn3)}</td><td class="r">${f(x.km)}</td><td class="r">${f(x.spesen)}</td><td class="r">${x.hotelAnzahl ? f(x.hotelAnzahl) + (x.hotelBetrag ? ' · ' + esc(R.euro(x.hotelBetrag)) : '') : '–'}</td><td class="meta">${termine}</td></tr>`;
+  const summe = { sv1: sp(L, 'sv1'), pn1: sp(L, 'pn1'), sv3: sp(L, 'sv3'), pn3: sp(L, 'pn3'), km: sp(L, 'km'), spesen: sp(L, 'spesen'), hotelAnzahl: sp(L, 'hotelAnzahl'), hotelBetrag: sp(L, 'hotelBetrag') };
+  return `<details class="person" data-person="${esc(p)}"${offen ? ' open' : ''}><summary>Je Person (${L.length}) – Stunden, km, Spesen</summary>
+    <table class="abr"><thead><tr><th>Person</th><th class="r" title="Ortstermin inkl. Fahrt, Sachverständiger">SV Ort</th><th class="r" title="Ortstermin inkl. Fahrt, Probenehmer">PN Ort</th><th class="r" title="Auswertung / Bericht, Sachverständiger">SV Bericht</th><th class="r" title="Auswertung / Bericht, Probenehmer">PN Bericht</th><th class="r">km</th><th class="r">Spesen</th><th class="r">Übernacht.</th><th>Ortstermine</th></tr></thead>
+    <tbody>${L.map(x => zeile(`${esc(nameVon(x.kuerzel) || x.kuerzel)}${x.unklar ? ` <span class="badge rechnung" title="Einträge, die keine Zahl sind – stehen in BelegKit als Hinweis">${x.unklar} unklar</span>` : ''}`, x, x.termine.map(d => deDatum(d).slice(0, 6)).join(', '))).join('')}</tbody>
+    ${L.length > 1 ? `<tfoot>${zeile('Summe', summe, '')}</tfoot>` : ''}</table>
+    <div class="meta">Aus den Zeitdateien in „Abrechnung“ (aktueller Stand, nicht der gespeicherte). Nur fürs Büro – in den anderen Apps sieht jeder nur seine eigenen Zeiten.</div>
+    ${jp.fehler.length ? `<div class="ampel warn">Nicht lesbar: ${jp.fehler.map(esc).join(' · ')}</div>` : ''}</details>`;
 }
 function abrechnungHtml(a){
   const p = a.projekt.name, e = S.abr.get(p);
@@ -424,7 +442,7 @@ function abrechnungHtml(a){
   if (e.fehler) return kopf() + `<div class="ampel warn">„Abrechnung“ nicht lesbar: ${esc(e.fehler)}</div></div>`;
   const { r, v } = e;
   if (!r.stand) return kopf() + `<div class="ampel warn">Noch kein Abrechnungsstand. Der Sachverständige muss die Zeiten in BelegKit erfassen und dort „💾 Stand speichern“.</div>
-    ${r.fehler.length ? `<div class="meta">Nicht lesbar: ${r.fehler.map(esc).join(' · ')}</div>` : ''}<div class="aktionen">${frage('Bitte in BelegKit die Abrechnung prüfen und „Stand speichern“ – ich brauche sie für die Rechnung.')}</div></div>`;
+    ${r.fehler.length ? `<div class="meta">Nicht lesbar: ${r.fehler.map(esc).join(' · ')}</div>` : ''}<div class="aktionen">${frage('Bitte in BelegKit die Abrechnung prüfen und „Stand speichern“ – ich brauche sie für die Rechnung.')}</div>${jePersonHtml(p, e.jp, e.personOffen)}</div>`;
   const s = r.stand, preise = s.titel.some(t => t.zeilen.some(x => x.gesamt != null));
   const ampel = v.aktuell ? '<div class="ampel ok">✓ Stand ist aktuell – seitdem hat sich an Zeiten, Proben, Berichten und Fotos nichts geändert.</div>'
     : `<div class="ampel warn">⚠ Seit diesem Stand hat sich etwas geändert – vor der Rechnung bitte einen neuen Stand anfordern:<ul>${[...v.geaendert, ...v.ungeprueft].map(x => '<li>' + esc(x) + '</li>').join('')}</ul></div>`;
@@ -436,7 +454,7 @@ function abrechnungHtml(a){
       ${preise && s.netto != null ? `<tfoot><tr><td></td><td>Netto (Vorschau)</td><td></td><td></td><td class="r">${esc(R.euro(s.netto))}</td></tr></tfoot>` : ''}</table>
     <div class="aktionen" style="margin-top:6px"><button class="primary" data-abr-kopie="${esc(p)}" title="Position, Text, Menge, Einheit – zum Einfügen ins Rechnungsprogramm oder in Excel">⧉ Positionen kopieren</button>
       ${v.aktuell ? '' : frage('Seit dem Abrechnungsstand hat sich etwas geändert – bitte in BelegKit prüfen und neu „Stand speichern“.')}
-      <span class="meta">Datei: <span class="pfad">${esc(r.datei)}</span> (daneben als .csv für Excel)</span></div></div>`;
+      <span class="meta">Datei: <span class="pfad">${esc(r.datei)}</span> (daneben als .csv für Excel)</span></div>${jePersonHtml(p, e.jp, e.personOffen)}</div>`;
 }
 
 /* ---------- schreiben ---------- */
@@ -485,6 +503,7 @@ $('liste').addEventListener('change', async e => {
     await vermerk(el.dataset.p, { aufgabe: el.dataset.a, schritt: 'faellig', wert: !!el.value, ...(el.value ? { datum: el.value } : {}) });
   }
 });
+$('liste').addEventListener('toggle', e => { const d = e.target; if (d.matches && d.matches('details.person')){ const st = S.abr.get(d.dataset.person); if (st) st.personOffen = d.open; } }, true);
 $('liste').addEventListener('click', async e => {
   const m = e.target.closest('[data-mehr]');
   if (m){ const id = m.dataset.mehr; if (S.offen.has(id)) S.offen.delete(id); else { S.offen.add(id); const a = S.aufgaben.find(x => x.id === id); if (a && a.rechnungNoetig) abrLesen(a.projekt.name); } zeichnen(); return; }
