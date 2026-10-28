@@ -1,8 +1,12 @@
 # BüroKit – Aufgaben des Büros
 
-**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.1.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
+**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.2.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
 
 Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger, Rechnung) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, offen, „Versandt – Rechnung schreiben“ und erledigt.
+
+## Neu in 1.2.0 · 28.10.2026
+
+- **Je Person** unter „Abrechnung“ (zugeklappt): Stunden Ortstermin/Bericht als Sachverständiger bzw. Probenehmer, km, Spesen, Übernachtungen und Ortstermine je Kürzel, mit Summe – direkt aus den Zeitdateien `Abrechnung/Aufwand_<Kürzel>.json` (nur lesen). Nur in BüroKit; in den anderen Apps sieht jeder nur seine eigenen Zeiten. Einträge, die keine Zahl sind, stehen als „unklar“ daneben.
 
 ## Neu in 1.1.0 · 28.10.2026
 
@@ -38,12 +42,12 @@ Je Projekt im Ordner `_Buero`, ohne zentrale Datei und ohne Server:
 
 Jede Datei wird einmal geschrieben und nie geändert – zwei Kollegen können sich nichts überschreiben. Der Stand eines Schritts ist der neueste Vermerk dazu. Frühere Büroübergaben der Projektzentrale (bis 1.27, `_Buero/<Auftrags-UUID>/`) werden mitgelesen und wie Aufgaben gezeigt.
 
-Das Datenmodul `buero-aufgaben.js` ist in BüroKit und Projektzentrale byte-gleich. `buero-abrechnung.js` (nur BüroKit) liest den BelegKit-Stand und schreibt nie in „Abrechnung“.
+Das Datenmodul `buero-aufgaben.js` ist in BüroKit und Projektzentrale byte-gleich. `buero-abrechnung.js` (nur BüroKit) liest den BelegKit-Stand und die Zeitdateien und schreibt nie in „Abrechnung“.
 
 ## Tests
 
 ```sh
 node tests/aufgaben.cjs                    # Datenmodul gegen echte temporäre Ordner
-node tests/abrechnung.cjs                  # BelegKit-Stand lesen, Quellen vergleichen, Kopierformat
+node tests/abrechnung.cjs                  # BelegKit-Stand lesen, Quellen vergleichen, Kopierformat, je Person
 node tests/buerokit-browser.cjs chromium   # Oberfläche im echten Browser (Playwright)
 ```

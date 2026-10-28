@@ -93,6 +93,24 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
       assert.equal(zeilen[1], 'Titel 1\tOrtstermin – Zeit aufwand\t\t'); assert.equal(zeilen[2].split('\t')[1], 'Sachverständiger vor Ort – und Büro');
     });
 
+    await ok('je Person: Ortstermin/Bericht, SV/PN, km, Spesen, Übernachtung; Komma-Zahlen; Unklares gezählt; kaputte Datei genannt', async () => {
+      await fs.writeFile(path.join(abr, 'Aufwand_BEN.json'), JSON.stringify({ format: 'aufwandkit-zeiten', version: 1, eintraege: [
+        { datum: '2026-10-21', art: 'ort', rolle: 'Sachverständiger', stunden: '3,5', km: '84', spesen: '1' },
+        { datum: '2026-10-22', art: 'ort', rolle: 'Sachverständiger', stunden: '2', km: '', hotelAnzahl: '1', hotelBetrag: '89,50' },
+        { datum: '2026-10-25', art: 'buero', rolle: 'Sachverständiger', stunden: '4' },
+        { datum: '2026-10-21', art: 'ort', rolle: 'Probenehmer', stunden: '1.250' } ] }));
+      await fs.writeFile(path.join(abr, 'Aufwand_NAD.json'), JSON.stringify({ format: 'aufwandkit-zeiten', version: 1, eintraege: [{ datum: '2026-10-21', art: 'ort', rolle: 'Probenehmer', stunden: '3.5' }] }));
+      await fs.writeFile(path.join(abr, 'Aufwand_RIC.json'), '{kaputt');
+      const r = await R.jePerson(projekt);
+      assert.deepEqual(r.personen.map(p => p.kuerzel), ['BEN', 'NAD']);
+      const ben = r.personen[0];
+      assert.deepEqual([ben.sv1, ben.pn1, ben.sv3, ben.km, ben.spesen, ben.hotelAnzahl, ben.hotelBetrag, ben.unklar], [5.5, 0, 4, 84, 1, 1, 89.5, 1]);
+      assert.deepEqual(ben.termine, ['2026-10-21', '2026-10-22']);
+      assert.equal(r.personen[1].pn1, 3.5);
+      assert.equal(r.fehler.length, 1); assert.match(r.fehler[0], /Aufwand_RIC\.json/);
+      assert.deepEqual(await R.jePerson(await archiv.getDirectoryHandle('26.0561 Leer')), { personen: [], fehler: [] });
+    });
+
     console.log(`${n} Prüfungen Abrechnung bestanden`);
   }finally{ await fs.rm(tmp, { recursive: true, force: true }); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
