@@ -98,6 +98,21 @@ details.gruppe>summary{cursor:pointer;font-size:12px;text-transform:uppercase;le
 .verlauf summary{cursor:pointer}
 .verlauf ul{margin:4px 0 0;padding-left:18px}
 .toggle{border:0;background:none;color:var(--accent);padding:2px 4px;font-size:13px}
+.badge.rechnung{background:var(--warn-l);color:var(--warn)}
+.block{border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:8px 10px}
+.block h4{margin:0 0 6px;font-size:13px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.block h4 small{font-weight:400;color:var(--muted)}
+.anl{margin:0;padding-left:18px;display:grid;gap:3px}
+.abr{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+.abr th,.abr td{text-align:left;padding:3px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.abr th{color:var(--muted);font-weight:600;font-size:12px}
+.abr td.r,.abr th.r{text-align:right;white-space:nowrap}
+.abr tr.t td{font-weight:600;background:var(--panel)}
+.abr .mono{font-family:var(--mono)}
+.abr tfoot td{font-weight:600;border-bottom:0}
+.ampel{font-size:13px;margin:2px 0}
+.ampel.ok{color:var(--ok)} .ampel.warn{color:var(--warn)}
+.ampel ul{margin:3px 0 0;padding-left:18px}
 dialog{border:1px solid var(--line2);border-radius:12px;padding:0;max-width:560px;width:calc(100% - 30px);background:var(--panel);color:var(--text);box-shadow:0 10px 40px rgba(0,0,0,.25)}
 dialog::backdrop{background:rgba(20,30,45,.4)}
 dialog form{padding:18px 20px;display:grid;gap:10px}
@@ -133,7 +148,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 20px 30px;color:var(--muted);fon
   <div id="hinweise"></div>
   <div id="start" class="start" hidden>
     <h2>Willkommen bei BüroKit</h2>
-    <p>Hier steht, was im Büro zu tun ist: übergebene Gutachten (gegenlesen, PDF, Versand) und eigene Aufgaben je Projekt. Alles wird direkt in den Projektordnern gespeichert – kein Server, nichts wird hochgeladen.</p>
+    <p>Hier steht, was im Büro zu tun ist: übergebene Gutachten (gegenlesen, PDF, Versand, Rechnung) und eigene Aufgaben je Projekt. Alles wird direkt in den Projektordnern gespeichert – kein Server, nichts wird hochgeladen.</p>
     <p>Bitte einmal den <b>Archivordner</b> wählen (der Ordner mit allen Projektordnern, z. B. „Mosaik Archivordner“).</p>
     <p><button class="primary" id="btnArchiv2">📁 Archivordner wählen …</button></p>
     <p id="startRecht" hidden><button class="primary" id="btnRecht">Zugriff auf den Archivordner erlauben</button></p>
@@ -141,7 +156,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 20px 30px;color:var(--muted);fon
   </div>
   <div id="liste"></div>
 </main>
-<footer><span id="version"></span> · Gespeichert wird je Projekt in „_Buero“ (eine kleine Datei je Aufgabe und je Haken). <a href="../aidkit/#app-buerokit" target="aidkit" rel="noopener">📘 Handbuch</a></footer>
+<footer><span id="version"></span> · Gespeichert wird je Projekt in „_Buero“ (eine kleine Datei je Aufgabe und je Haken). Die Abrechnung wird aus „Abrechnung“ nur gelesen. <a href="../aidkit/#app-buerokit" target="aidkit" rel="noopener">📘 Handbuch</a></footer>
 
 <dialog id="dlgNeu">
   <form method="dialog" id="formNeu">
@@ -164,10 +179,11 @@ footer{max-width:1180px;margin:0 auto;padding:0 20px 30px;color:var(--muted);fon
 </dialog>
 
 <script src="buero-aufgaben.js"></script>
+<script src="buero-abrechnung.js"></script>
 <script>
 'use strict';
-const APP_VERSION = '1.0.1';
-const B = window.BueroAufgaben;
+const APP_VERSION = '1.1.0';
+const B = window.BueroAufgaben, R = window.BueroAbrechnung;
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const MA_FILE = '_Spektron-Mitarbeiter.json';
@@ -203,7 +219,8 @@ const KV = {
   async set(k, v){ const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
 };
 
-const S = { archiv: null, aufgaben: [], projekte: [], fehler: [], personen: null, filter: lsGet('buerokit-filter', 'alle'), suche: '', offen: new Set(), lesen: 0, gelesen: null, schreiben: 0 };
+const S = { archiv: null, aufgaben: [], projekte: [], fehler: [], personen: null, filter: lsGet('buerokit-filter', 'alle'), suche: '', offen: new Set(), lesen: 0, gelesen: null, schreiben: 0,
+  abr: new Map() };   // Abrechnung je Projekt: {lauf, zeit, r: {stand, datei, anzahl, fehler}, v: Vergleich, fehler}
 const heute = () => { const d = new Date(), z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
 const deDatum = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}.${m[2]}.${m[1]}` : ''; };
 const deZeit = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
@@ -290,14 +307,15 @@ function zeichnen(){
   hinweiseLeeren();
   const sichtbar = S.aufgaben.filter(a => !a.geloescht && passt(a)), t = heute();
   const woche = new Date(Date.now() - 7 * 864e5).toISOString();
-  const offen = sichtbar.filter(a => !a.erledigt);
+  const offen = sichtbar.filter(a => !a.abgeschlossen), versandOffen = offen.filter(a => !a.erledigt);
   const gruppen = [
-    ['ueberfaellig', '⚠ Überfällig', offen.filter(a => a.faellig && a.faellig < t)],
-    ['heute', 'Heute fällig', offen.filter(a => a.faellig === t)],
-    ['offen', 'Offen', offen.filter(a => !a.faellig || a.faellig > t)]
+    ['ueberfaellig', '⚠ Überfällig', versandOffen.filter(a => a.faellig && a.faellig < t)],
+    ['heute', 'Heute fällig', versandOffen.filter(a => a.faellig === t)],
+    ['offen', 'Offen', versandOffen.filter(a => !a.faellig || a.faellig > t)],
+    ['rechnung', 'Versandt – Rechnung schreiben', offen.filter(a => a.erledigt)]
   ];
   for (const g of gruppen) g[2].sort((a, b) => (a.faellig || '9999').localeCompare(b.faellig || '9999') || a.erstellt.localeCompare(b.erstellt));
-  const erledigt = sichtbar.filter(a => a.erledigt && a.erledigtAm >= woche).sort((a, b) => b.erledigtAm.localeCompare(a.erledigtAm));
+  const erledigt = sichtbar.filter(a => a.abgeschlossen && a.abgeschlossenAm >= woche).sort((a, b) => b.abgeschlossenAm.localeCompare(a.abgeschlossenAm));
   let html = '';
   for (const [k, titel, liste] of gruppen) if (liste.length) html += `<section class="gruppe ${k}"><h2>${titel}<span class="n">${liste.length}</span></h2>${liste.map(karte).join('')}</section>`;
   if (!offen.length) html += `<p class="leer">${S.aufgaben.length ? (S.filter === 'meine' ? 'Für dich ist gerade nichts offen.' : 'Nichts offen – alles erledigt. 🎉') : 'Noch keine Aufgaben. Gutachten werden in der Projektzentrale „Ans Büro“ übergeben; eigene Aufgaben mit „＋ Aufgabe“.'}</p>`;
@@ -316,24 +334,26 @@ function schrittHtml(a, schritt, label, an, extra = ''){
 function karte(a){
   const l = leseProjektordner(a.projekt.name, S.personen) || { nr: a.projekt.nr, ort: a.projekt.name, kuerzel: '' };
   const t = heute(), offen = S.offen.has(a.id);
-  const faellig = a.faellig ? (a.faellig < t && !a.erledigt ? `<span class="badge ueberfaellig">fällig seit ${deDatum(a.faellig)}</span>` : a.faellig === t && !a.erledigt ? '<span class="badge heute">heute fällig</span>' : `<span class="badge bearbeitet">fällig ${deDatum(a.faellig)}</span>`) : '';
+  const faellig = a.faellig && !a.erledigt ? (a.faellig < t ? `<span class="badge ueberfaellig">fällig seit ${deDatum(a.faellig)}</span>` : a.faellig === t ? '<span class="badge heute">heute fällig</span>' : `<span class="badge bearbeitet">fällig ${deDatum(a.faellig)}</span>`) : '';
   const frage = a.frage ? '<span class="badge frage">Rückfrage offen</span>' : '';
-  const bearbeitet = a.uebernommen && !a.erledigt ? `<span class="badge bearbeitet">${esc(nameVon(a.uebernommen.von))} bearbeitet</span>` : '';
+  const bearbeitet = a.uebernommen && !a.abgeschlossen ? `<span class="badge bearbeitet">${esc(nameVon(a.uebernommen.von))} bearbeitet</span>` : '';
+  const rechnung = a.erledigt && !a.abgeschlossen ? '<span class="badge rechnung">versandt · Rechnung offen</span>' : '';
   let schritte;
   if (a.art === 'gutachten'){
     const n = a.empfaenger.length, v = Object.keys(a.versand).length;
     schritte = schrittHtml(a, 'gegenlesen', 'Gegenlesen', a.gegenlesen) + schrittHtml(a, 'pdf', 'PDF', a.pdf)
-      + `<button class="schritt${v && v === n ? ' an' : v ? ' teil' : ''}" data-mehr="${esc(a.id)}" aria-expanded="${offen}" title="Versand je Empfänger">Versand ${v}/${n} ${offen ? '▴' : '▾'}</button>`;
+      + `<button class="schritt${v && v === n ? ' an' : v ? ' teil' : ''}" data-mehr="${esc(a.id)}" aria-expanded="${offen}" title="Versand je Empfänger">Versand ${v}/${n} ${offen ? '▴' : '▾'}</button>`
+      + (a.rechnungNoetig ? schrittHtml(a, 'rechnung', 'Rechnung', a.rechnung) : '');
   } else schritte = schrittHtml(a, 'erledigt', 'Erledigt', a.erledigt ? { von: (a.verlauf.filter(x => x.schritt === 'erledigt').pop() || {}).von || '', zeit: a.erledigtAm } : null);
   const wer = l.kuerzel ? `<span class="wer">· ${esc(nameVon(l.kuerzel))}</span>` : '';
-  return `<article class="aufgabe${a.erledigt ? ' erledigt' : ''}${a.frage ? ' frage' : ''}" data-id="${esc(a.id)}">
+  return `<article class="aufgabe${a.abgeschlossen ? ' erledigt' : ''}${a.frage ? ' frage' : ''}" data-id="${esc(a.id)}">
     <div class="kopf">
       <div class="was">
         <div class="projekt"><span class="nr">${esc(l.nr)}</span>${esc(l.ort)}${wer}</div>
-        <div class="titel">${esc(a.titel)}${faellig}${frage}${bearbeitet}</div>
+        <div class="titel">${esc(a.titel)}${faellig}${rechnung}${frage}${bearbeitet}</div>
         <div class="meta">${a.art === 'gutachten' ? 'übergeben' : 'angelegt'} von ${esc(nameVon(a.von) || '–')} am ${kurzDatum(a.erstellt)}${a.fuer ? ' · für ' + esc(nameVon(a.fuer)) : ''}${a.hinweis ? ' · „' + esc(a.hinweis) + '“' : ''}</div>
       </div>
-      <div class="schritte">${schritte}<button class="toggle" data-mehr="${esc(a.id)}" aria-expanded="${offen}" title="Details, Rückfrage, Fälligkeit">${offen ? 'weniger' : 'mehr'}</button></div>
+      <div class="schritte">${schritte}<button class="toggle" data-mehr="${esc(a.id)}" aria-expanded="${offen}" title="Anlagen, Empfänger, Abrechnung, Rückfrage, Fälligkeit">${offen ? 'weniger' : 'mehr'}</button></div>
     </div>
     <div class="mehr"${offen ? '' : ' hidden'}>${offen ? details(a) : ''}</div>
   </article>`;
@@ -342,17 +362,19 @@ function details(a){
   let h = '';
   if (a.word) h += `<div class="zeile"><span class="lbl">Word-Datei</span><span class="pfad">${esc(a.word)}</span><button class="link" data-kopie="${esc(a.word)}">kopieren</button></div>`;
   if (a.pdf && a.pdf.pdf) h += `<div class="zeile"><span class="lbl">PDF</span><span class="pfad">${esc(a.pdf.pdf)}</span></div>`;
+  if (a.art === 'gutachten') h += anlagenHtml(a);
   if (a.art === 'gutachten'){
     h += `<div class="zeile"><span class="lbl">Versand an</span></div><div class="empf">${a.empfaenger.map(r => { const v = a.versand[r.id];
       return `<label class="${v ? 'an' : ''}"><input type="checkbox" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" data-s="versand" data-e="${esc(r.id)}"${v ? ' checked' : ''}${S.schreiben ? ' disabled' : ''}><span><b>${esc(r.label || r.gruppe)}</b><span class="adr">${esc(r.details)}</span>${v ? `<small>versandt ${v.datum ? deDatum(v.datum) : kurzDatum(v.zeit)} · ${esc(nameVon(v.von))}</small>` : ''}</span></label>`; }).join('')}</div>`;
   }
+  if (a.rechnungNoetig) h += abrechnungHtml(a);
   const dialog = a.verlauf.filter(v => v.schritt === 'frage' || v.schritt === 'antwort');
   if (dialog.length) h += `<div class="dialog">${dialog.map(v => `<div class="eintrag ${v.schritt}"><b>${v.schritt === 'frage' ? 'Rückfrage' : 'Antwort'}</b> · ${esc(nameVon(v.von))}, ${deZeit(v.zeit)}<br>${esc(v.text)}</div>`).join('')}</div>`;
   h += `<div class="aktionen">
-    ${!a.erledigt && !(a.uebernommen && maNorm(a.uebernommen.von) === maNorm(ich())) ? `<button data-akt="uebernehmen" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}">Ich mache das</button>` : ''}
+    ${!a.abgeschlossen && !(a.uebernommen && maNorm(a.uebernommen.von) === maNorm(ich())) ? `<button data-akt="uebernehmen" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}">Ich mache das</button>` : ''}
     ${a.frage ? `<button data-akt="antwort" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}">Rückfrage beantworten</button>` : `<button data-akt="frage" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}">Rückfrage stellen</button>`}
     <label class="zeile" style="gap:5px">Fällig <input type="date" data-akt="faellig" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" value="${esc(a.faellig)}"></label>
-    ${a.art === 'gutachten' && !a.erledigt ? `<button data-akt="erledigt" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" title="z. B. wenn der Versand außerhalb erledigt wurde">Als erledigt markieren</button>` : ''}
+    ${a.art === 'gutachten' && !a.erledigt ? `<button data-akt="erledigt" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" title="z. B. wenn der Versand außerhalb erledigt wurde">Versand als erledigt markieren</button>` : ''}
     ${a.art === 'gutachten' && a.erledigt && a.verlauf.some(v => v.schritt === 'erledigt' && v.wert) ? `<button data-akt="wiederoeffnen" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}">Wieder öffnen</button>` : ''}
     <button data-akt="loeschen" data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}" title="Aufgabe aus der Liste nehmen (bleibt im Projektordner nachvollziehbar)">Entfernen</button>
   </div>`;
@@ -361,10 +383,60 @@ function details(a){
 }
 function verlaufText(a, v){
   const r = v.empfaenger && a.empfaenger.find(x => x.id === v.empfaenger);
-  const namen = { gegenlesen: 'Gegenlesen', pdf: 'PDF', versand: 'Versand' + (r ? ' an ' + (r.label || r.gruppe) : ''), erledigt: 'Erledigt', uebernommen: 'übernommen', faellig: 'Fälligkeit', geloescht: 'entfernt', frage: 'Rückfrage', antwort: 'Antwort' };
+  const namen = { gegenlesen: 'Gegenlesen', pdf: 'PDF', versand: 'Versand' + (r ? ' an ' + (r.label || r.gruppe) : ''), rechnung: 'Rechnung' + (v.stand && v.wert ? ' (nach ' + v.stand.split('/').pop() + ')' : ''), erledigt: 'Versand erledigt', uebernommen: 'übernommen', faellig: 'Fälligkeit', geloescht: 'entfernt', frage: 'Rückfrage', antwort: 'Antwort' };
   if (v.schritt === 'faellig') return v.wert && v.datum ? 'fällig am ' + deDatum(v.datum) : 'Fälligkeit entfernt';
   if (v.schritt === 'frage' || v.schritt === 'antwort') return namen[v.schritt] + ': ' + v.text;
   return namen[v.schritt] + (v.wert ? ' ✓' : ' zurückgenommen');
+}
+
+/* ---------- Anlagen ---------- */
+function anlagenHtml(a){
+  if (!a.anlagen.length) return `<div class="zeile"><span class="lbl">Anlagen</span><span class="meta">${a.alt ? 'bei früheren Übergaben nicht erfasst' : 'keine angegeben'}</span></div>`;
+  const pfad = x => /^[^/\\]+\/[^/\\]/.test(x) && /\.[A-Za-z0-9]{2,5}$/.test(x);   // „Fotos/Bilddokumentation.pdf“ – sonst ein Text wie „Laborberichte Eurofins“
+  return `<div class="block"><h4>Anlagen <small>${a.anlagen.length} · mit dem Gutachten versenden</small></h4><ol class="anl">${a.anlagen.map(x => pfad(x)
+    ? `<li><span class="pfad">${esc(x)}</span> <button class="link" data-kopie="${esc(x)}">kopieren</button></li>` : `<li>${esc(x)}</li>`).join('')}</ol></div>`;
+}
+
+/* ---------- Abrechnung (BelegKit-Stand, nur lesen) ---------- */
+async function abrLesen(projekt, erzwingen = false){
+  const alt = S.abr.get(projekt);
+  if (alt && !erzwingen && (alt.laeuft || Date.now() - alt.zeit < 60000)) return;
+  const e = { lauf: (alt ? alt.lauf : 0) + 1, laeuft: true, zeit: Date.now(), r: alt && alt.r, v: alt && alt.v, fehler: '' };
+  S.abr.set(projekt, e);
+  try{
+    const dir = await S.archiv.getDirectoryHandle(projekt);
+    const r = await R.neuesterStand(dir);
+    const v = r.stand ? await R.standVergleichen(dir, r.stand, S.archiv) : null;
+    if (S.abr.get(projekt) !== e) return;
+    e.r = r; e.v = v;
+  }catch(x){ if (S.abr.get(projekt) === e) e.fehler = x.message || String(x); }
+  e.laeuft = false; e.zeit = Date.now();
+  if (S.abr.get(projekt) === e) abrZeigen(projekt);
+}
+function abrZeigen(projekt){
+  document.querySelectorAll('[data-abr]').forEach(el => { if (el.dataset.abr === projekt){ const a = S.aufgaben.find(x => x.id === el.dataset.aufgabe); if (a) el.outerHTML = abrechnungHtml(a); } });
+}
+function abrechnungHtml(a){
+  const p = a.projekt.name, e = S.abr.get(p);
+  if (!e || (!e.r && !e.fehler)){ if (S.archiv) setTimeout(() => abrLesen(p), 0); return `<div class="block" data-abr="${esc(p)}" data-aufgabe="${esc(a.id)}"><h4>Abrechnung</h4><div class="meta">wird gelesen …</div></div>`; }
+  const kopf = (rest = '') => `<div class="block" data-abr="${esc(p)}" data-aufgabe="${esc(a.id)}"><h4>Abrechnung ${rest}<button class="link" data-abr-neu="${esc(p)}">neu lesen</button></h4>`;
+  const frage = (t) => `<button data-akt="frage" data-a="${esc(a.id)}" data-p="${esc(p)}" data-vorgabe="${esc(t)}">Rückfrage stellen</button>`;
+  if (e.fehler) return kopf() + `<div class="ampel warn">„Abrechnung“ nicht lesbar: ${esc(e.fehler)}</div></div>`;
+  const { r, v } = e;
+  if (!r.stand) return kopf() + `<div class="ampel warn">Noch kein Abrechnungsstand. Der Sachverständige muss die Zeiten in BelegKit erfassen und dort „💾 Stand speichern“.</div>
+    ${r.fehler.length ? `<div class="meta">Nicht lesbar: ${r.fehler.map(esc).join(' · ')}</div>` : ''}<div class="aktionen">${frage('Bitte in BelegKit die Abrechnung prüfen und „Stand speichern“ – ich brauche sie für die Rechnung.')}</div></div>`;
+  const s = r.stand, preise = s.titel.some(t => t.zeilen.some(x => x.gesamt != null));
+  const ampel = v.aktuell ? '<div class="ampel ok">✓ Stand ist aktuell – seitdem hat sich an Zeiten, Proben, Berichten und Fotos nichts geändert.</div>'
+    : `<div class="ampel warn">⚠ Seit diesem Stand hat sich etwas geändert – vor der Rechnung bitte einen neuen Stand anfordern:<ul>${[...v.geaendert, ...v.ungeprueft].map(x => '<li>' + esc(x) + '</li>').join('')}</ul></div>`;
+  const tab = s.titel.map(t => `<tbody><tr class="t"><td>Titel ${esc(t.nr)}</td><td colspan="${preise ? 4 : 3}">${esc(t.text).replace(/\n/g, ' – ')}</td></tr>
+    ${t.zeilen.map(x => `<tr><td class="mono">${esc(x.nr) || '?'}</td><td>${esc(x.text)}${x.zusatz ? ` <span class="meta">(${esc(x.zusatz)})</span>` : ''}</td><td class="r"><b>${esc(R.fmt(x.menge))}</b></td><td>${esc(x.einheit)}</td>${preise ? `<td class="r">${esc(R.euro(x.gesamt))}</td>` : ''}</tr>`).join('')}</tbody>`).join('');
+  return kopf(`<small>BelegKit-Stand vom ${esc(deZeit(s.erstellt))}${s.von ? ' · ' + esc(nameVon(s.von)) : ''}${r.anzahl > 1 ? ` · neuester von ${r.anzahl}` : ''}</small>`) + ampel
+    + (s.hinweise.length ? `<div class="ampel warn">BelegKit meldete beim Speichern: <ul>${s.hinweise.map(x => '<li>' + esc(x) + '</li>').join('')}</ul></div>` : '')
+    + `<table class="abr"><thead><tr><th>Position</th><th>Text</th><th class="r">Menge</th><th>Einh.</th>${preise ? '<th class="r">Gesamt (Vorschau)</th>' : ''}</tr></thead>${tab}
+      ${preise && s.netto != null ? `<tfoot><tr><td></td><td>Netto (Vorschau)</td><td></td><td></td><td class="r">${esc(R.euro(s.netto))}</td></tr></tfoot>` : ''}</table>
+    <div class="aktionen" style="margin-top:6px"><button class="primary" data-abr-kopie="${esc(p)}" title="Position, Text, Menge, Einheit – zum Einfügen ins Rechnungsprogramm oder in Excel">⧉ Positionen kopieren</button>
+      ${v.aktuell ? '' : frage('Seit dem Abrechnungsstand hat sich etwas geändert – bitte in BelegKit prüfen und neu „Stand speichern“.')}
+      <span class="meta">Datei: <span class="pfad">${esc(r.datei)}</span> (daneben als .csv für Excel)</span></div></div>`;
 }
 
 /* ---------- schreiben ---------- */
@@ -393,7 +465,20 @@ function textFragen(titel, frage, vorgabe = ''){
 }
 $('liste').addEventListener('change', async e => {
   const el = e.target;
-  if (el.matches('input[type=checkbox][data-s]')){
+  if (el.matches('input[type=checkbox][data-s="rechnung"]')){
+    const an = el.checked, p = el.dataset.p;
+    let stand = '';
+    if (an){
+      await abrLesen(p, true);
+      const e = S.abr.get(p) || {};
+      if (!e.r || !e.r.stand){ if (!confirm('Zu diesem Projekt gibt es keinen BelegKit-Stand. Trotzdem als abgerechnet markieren?')){ el.checked = false; return; } }
+      else {
+        if (e.v && !e.v.aktuell && !confirm('Seit dem BelegKit-Stand hat sich etwas geändert (siehe „Abrechnung“). Trotzdem als abgerechnet markieren?')){ el.checked = false; return; }
+        stand = e.r.datei;
+      }
+    }
+    if (!(await vermerk(p, { aufgabe: el.dataset.a, schritt: 'rechnung', wert: an, ...(stand ? { stand } : {}) }))) el.checked = !an;
+  } else if (el.matches('input[type=checkbox][data-s]')){
     const an = el.checked;
     if (!(await vermerk(el.dataset.p, { aufgabe: el.dataset.a, schritt: el.dataset.s, wert: an, ...(el.dataset.e ? { empfaenger: el.dataset.e, ...(an ? { datum: heute() } : {}) } : {}) }))) el.checked = !an;
   } else if (el.matches('input[data-akt="faellig"]')){
@@ -402,7 +487,12 @@ $('liste').addEventListener('change', async e => {
 });
 $('liste').addEventListener('click', async e => {
   const m = e.target.closest('[data-mehr]');
-  if (m){ const id = m.dataset.mehr; if (S.offen.has(id)) S.offen.delete(id); else S.offen.add(id); zeichnen(); return; }
+  if (m){ const id = m.dataset.mehr; if (S.offen.has(id)) S.offen.delete(id); else { S.offen.add(id); const a = S.aufgaben.find(x => x.id === id); if (a && a.rechnungNoetig) abrLesen(a.projekt.name); } zeichnen(); return; }
+  const neu = e.target.closest('[data-abr-neu]');
+  if (neu){ abrLesen(neu.dataset.abrNeu, true); return; }
+  const ak = e.target.closest('[data-abr-kopie]');
+  if (ak){ const st = S.abr.get(ak.dataset.abrKopie); if (!st || !st.r || !st.r.stand) return;
+    try{ await navigator.clipboard.writeText(R.tsv(st.r.stand)); ak.textContent = '✓ kopiert – im Rechnungsprogramm einfügen'; }catch(x){ ak.textContent = 'Kopieren nicht möglich'; } return; }
   const k = e.target.closest('[data-kopie]');
   if (k){ try{ await navigator.clipboard.writeText(k.dataset.kopie); k.textContent = 'kopiert ✓'; }catch(x){ k.textContent = 'bitte markieren und kopieren'; } return; }
   const b = e.target.closest('button[data-akt]');
@@ -411,7 +501,7 @@ $('liste').addEventListener('click', async e => {
   if (b.dataset.akt === 'uebernehmen') await vermerk(p, { aufgabe: a, schritt: 'uebernommen' });
   else if (b.dataset.akt === 'erledigt') await vermerk(p, { aufgabe: a, schritt: 'erledigt' });
   else if (b.dataset.akt === 'wiederoeffnen') await vermerk(p, { aufgabe: a, schritt: 'erledigt', wert: false });
-  else if (b.dataset.akt === 'frage'){ const t = await textFragen('Rückfrage', 'Was soll der Sachverständige klären? (erscheint auch in der Projektzentrale)'); if (t) await vermerk(p, { aufgabe: a, schritt: 'frage', text: t }); }
+  else if (b.dataset.akt === 'frage'){ const t = await textFragen('Rückfrage', 'Was soll der Sachverständige klären? (erscheint auch in der Projektzentrale)', b.dataset.vorgabe || ''); if (t) await vermerk(p, { aufgabe: a, schritt: 'frage', text: t }); }
   else if (b.dataset.akt === 'antwort'){ const t = await textFragen('Rückfrage beantworten', 'Antwort'); if (t) await vermerk(p, { aufgabe: a, schritt: 'antwort', text: t }); }
   else if (b.dataset.akt === 'loeschen'){ if (confirm('Diese Aufgabe aus der Liste nehmen? Sie bleibt im Projektordner nachvollziehbar.')) await vermerk(p, { aufgabe: a, schritt: 'geloescht' }); }
 });
