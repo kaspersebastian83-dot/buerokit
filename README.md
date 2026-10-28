@@ -1,8 +1,12 @@
 # BüroKit – Aufgaben des Büros
 
-**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.3.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
+**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.4.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
 
 Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger, Rechnung) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, offen, „Versandt – Rechnung schreiben“ und erledigt.
+
+## Neu in 1.4.0 · 28.10.2026
+
+- **Spektron-Ordner ist da:** Neue Projekte (ab 26.0560) und per Projektzentrale umgezogene Projekte haben Aufgaben und Haken jetzt unter `_Spektron/Buero`, die BelegKit-Stände unter `_Spektron/BelegKit`. Noch nicht umgezogene Projekte werden weiter am bisherigen Ort gelesen und geschrieben (`spektron-ordner.js`, Umstellung aktiv).
 
 ## Neu in 1.3.0 · 28.10.2026
 
