@@ -37,7 +37,7 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
       assert.deepEqual(r.fehler, []); assert.equal(r.aufgaben.length, 1);
       const x = r.aufgaben[0];
       assert.equal(x.status, 'Neu'); assert.equal(x.faellig, '2026-11-03'); assert.equal(x.empfaenger.length, 2); assert.equal(x.projekt.nr, '26.0101');
-      assert.equal(B.offenText(x), 'Gegenlesen · PDF · Versand');
+      assert.equal(B.offenText(x), 'Gegenlesen · PDF · Versand · Rechnung'); assert.ok(x.rechnungNoetig); assert.equal(x.abgeschlossen, false);
     });
 
     await ok('Haken setzen und wieder wegnehmen – ohne Begründung; Versand je Empfänger; erledigt erst mit allem', async () => {
@@ -46,12 +46,34 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
       await B.vermerken(p, { aufgabe: a.id, schritt: 'pdf', von: 'Nad', pdf: 'Mitteilungen/Gutachten 26.0101.pdf' });
       await B.vermerken(p, { aufgabe: a.id, schritt: 'versand', empfaenger: r1, von: 'Nad', datum: '2026-10-28' });
       let x = (await B.projektLesen(p)).aufgaben[0];
-      assert.equal(x.status, 'In Bearbeitung'); assert.equal(B.offenText(x), 'Versand 1/2'); assert.equal(x.versand[r1].datum, '2026-10-28'); assert.equal(x.gegenlesen.von, 'Nad');
+      assert.equal(x.status, 'In Bearbeitung'); assert.equal(B.offenText(x), 'Versand 1/2 · Rechnung'); assert.equal(x.versand[r1].datum, '2026-10-28'); assert.equal(x.gegenlesen.von, 'Nad');
       await B.vermerken(p, { aufgabe: a.id, schritt: 'gegenlesen', wert: false, von: 'Nad' });   // versehentlich gehakt
-      x = (await B.projektLesen(p)).aufgaben[0]; assert.equal(x.gegenlesen, null); assert.equal(B.offenText(x), 'Gegenlesen · Versand 1/2');
+      x = (await B.projektLesen(p)).aufgaben[0]; assert.equal(x.gegenlesen, null); assert.equal(B.offenText(x), 'Gegenlesen · Versand 1/2 · Rechnung');
       await B.vermerken(p, { aufgabe: a.id, schritt: 'gegenlesen', von: 'Nad' });
       await B.vermerken(p, { aufgabe: a.id, schritt: 'versand', empfaenger: r2, von: 'Ric' });
       x = (await B.projektLesen(p)).aufgaben[0]; assert.equal(x.status, 'Erledigt'); assert.ok(x.erledigtAm); assert.equal(x.verlauf.length, 6);
+      // versandt heißt noch nicht abgeschlossen: die Rechnung fehlt
+      assert.equal(x.abgeschlossen, false); assert.equal(B.offenText(x), 'Rechnung'); assert.equal(B.alsDurchlauf([x])[0].status, 'Erledigt');
+    });
+
+    await ok('Rechnung: eigener Haken mit BelegKit-Stand; erst dann abgeschlossen; wieder wegnehmen geht', async () => {
+      const versandtAm = (await B.projektLesen(p)).aufgaben[0].erledigtAm; await new Promise(r => setTimeout(r, 15));
+      await B.vermerken(p, { aufgabe: a.id, schritt: 'rechnung', von: 'Nad', stand: 'Abrechnung/26.0101_Aufwand_2026-10-28.json' });
+      let x = (await B.projektLesen(p)).aufgaben[0];
+      assert.equal(x.erledigtAm, versandtAm, 'erledigt = versandt: Rechnung verschiebt den Zeitpunkt nicht'); assert.ok(x.abgeschlossenAm > versandtAm);
+      assert.equal(x.rechnung.von, 'Nad'); assert.equal(x.rechnung.stand, 'Abrechnung/26.0101_Aufwand_2026-10-28.json');
+      assert.equal(x.abgeschlossen, true); assert.ok(x.abgeschlossenAm >= x.erledigtAm); assert.equal(B.offenText(x), 'erledigt');
+      await B.vermerken(p, { aufgabe: a.id, schritt: 'rechnung', wert: false, von: 'Nad' });
+      x = (await B.projektLesen(p)).aufgaben[0]; assert.equal(x.rechnung, null); assert.equal(x.abgeschlossen, false);
+      await B.vermerken(p, { aufgabe: a.id, schritt: 'rechnung', von: 'Nad' });
+    });
+
+    await ok('Anlagen: Pfade und Texte, ohne Doppelte und Leere', async () => {
+      const g = await B.aufgabeAnlegen(p, { art: 'gutachten', von: 'Ben', empfaenger: [{ gruppe: 'versicherung', label: 'Auftraggeber', details: 'Muster AG' }],
+        anlagen: ['Fotos/26.0101_Bilddokumentation.pdf', ' ', 'Laborberichte Eurofins', 'Fotos/26.0101_Bilddokumentation.pdf', 42] });
+      const x = (await B.projektLesen(p)).aufgaben.find(y => y.id === g.id);
+      assert.deepEqual(x.anlagen, ['Fotos/26.0101_Bilddokumentation.pdf', 'Laborberichte Eurofins']);
+      await B.vermerken(p, { aufgabe: g.id, schritt: 'geloescht', von: 'Ben' });
     });
 
     await ok('Rückfrage und Antwort; Fälligkeit ändern; eigene Aufgabe mit „erledigt“', async () => {
@@ -89,6 +111,7 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
       await B.vermerken(p, { aufgabe: id, schritt: 'pdf', von: 'Nad' });
       await B.vermerken(p, { aufgabe: id, schritt: 'versand', empfaenger: 'r-2', von: 'Nad' });
       x = (await B.projektLesen(p)).aufgaben.find(y => y.id === id); assert.equal(x.status, 'Erledigt');
+      assert.equal(x.rechnungNoetig, false); assert.equal(x.abgeschlossen, true); assert.deepEqual(x.anlagen, []);   // frühere Übergaben: ohne Rechnungsschritt
       const d2 = B.alsDurchlauf([x])[0]; assert.equal(d2.status, 'Erledigt'); assert.equal(d2.order.created, '2026-10-26T09:00:00.000Z'); assert.equal(d2.sent['r-1'].date, '2026-10-26');
     });
 
@@ -123,14 +146,14 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
       const r = await B.projektLesen(p);
       assert.ok(!r.aufgaben.some(y => y.id === fremd.id));
       assert.equal(r.fehler.length, 2); assert.match(r.fehler.join('\n'), /gehört zu „26\.0103 Anderswo“/); assert.match(r.fehler.join('\n'), /leer/);
-      assert.equal(r.aufgaben.length, 3);
+      assert.equal(r.aufgaben.length, 4);   // inkl. der entfernten Anlagen-Aufgabe (bleibt nachvollziehbar)
     });
 
     await ok('Archiv lesen: nur Projektordner, nur „_Buero“ wird gelesen; Projektliste für „+ Aufgabe“', async () => {
       const r = await B.archivLesen(archiv);
       assert.deepEqual(r.projekte, ['26.0103 Anderswo', '26.0102 Ohne Büro', '26.0101 Musterstadt Ben']);
       assert.equal(r.aufgaben.filter(a => a.projekt.name === '26.0103 Anderswo').length, 1);
-      assert.equal(r.aufgaben.length, 4);
+      assert.equal(r.aufgaben.length, 5);
     });
 
     await ok('nie überschreiben: gleicher Dateiname wird abgelehnt', async () => {

@@ -1,8 +1,15 @@
 # BüroKit – Aufgaben des Büros
 
-**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.0.1** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
+**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.1.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
 
-Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, offen und erledigt.
+Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger, Rechnung) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, offen, „Versandt – Rechnung schreiben“ und erledigt.
+
+## Neu in 1.1.0 · 28.10.2026
+
+- **Rechnung** als eigener Haken am Gutachten. Nach dem Versand wandert das Gutachten in die Gruppe „Versandt – Rechnung schreiben“; erledigt ist es erst mit dem Rechnungs-Haken. Frühere Übergaben (Projektzentrale bis 1.27) bleiben ohne Rechnungsschritt.
+- **Abrechnung** unter „mehr“: die Positionen aus dem neuesten BelegKit-Stand (`Abrechnung/<Nr>_Aufwand_<Datum>.json`, „💾 Stand speichern“ in BelegKit) mit Menge und Einheit – „⧉ Positionen kopieren“ wie in BelegKit. BüroKit prüft dabei die Quellen des Stands (Zeiten aller Kollegen, LabelKit-Proben, Berichte, Fotos, Einstellungen) gegen die gespeicherten Prüfsummen und warnt, wenn sich seitdem etwas geändert hat; dann per Rückfrage einen neuen Stand anfordern. Gezeigt werden nur die Rechnungspositionen, keine Stunden einzelner Kollegen.
+- **Anlagen**: Was mit dem Gutachten mitgeschickt werden muss, steht an der Aufgabe (aus der Projektzentrale „Ans Büro“, ab 1.30), Pfade zum Kopieren.
+- Beim Haken „Rechnung“ wird vermerkt, nach welchem Stand abgerechnet wurde. Kein Stand oder ein veralteter: Rückfrage vor dem Haken.
 
 ## Neu in 1.0.1 · 27.10.2026
 
@@ -15,7 +22,8 @@ Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand 
 3. Haken setzen, wenn ein Schritt erledigt ist – und wieder wegnehmen, wenn er versehentlich gesetzt war. Keine Begründung nötig.
 4. **Versand ▾** klappt die Empfänger auf; jeder Empfänger bekommt seinen eigenen Haken (mit Datum).
 5. **„＋ Aufgabe“** legt eine eigene Aufgabe zu einem Projekt an (z. B. „Laborrechnung prüfen“), mit Fälligkeit und für wen.
-6. **„mehr“** an einer Aufgabe: Word-Datei (Pfad zum Kopieren), Rückfrage stellen oder beantworten, Fälligkeit ändern, „Ich mache das“, entfernen.
+6. **„mehr“** an einer Aufgabe: Word-Datei und Anlagen (Pfade zum Kopieren), Abrechnung aus BelegKit, Rückfrage stellen oder beantworten, Fälligkeit ändern, „Ich mache das“, entfernen.
+7. **Rechnung**: Positionen kopieren, im Rechnungsprogramm einfügen, Haken „Rechnung“ setzen. Die Projektzentrale zeigt dann „abgerechnet“.
 
 Gutachten kommen aus der **Projektzentrale** („Ans Büro“). Rückfragen sieht der Sachverständige dort am Projekt und kann sie dort beantworten.
 
@@ -30,11 +38,12 @@ Je Projekt im Ordner `_Buero`, ohne zentrale Datei und ohne Server:
 
 Jede Datei wird einmal geschrieben und nie geändert – zwei Kollegen können sich nichts überschreiben. Der Stand eines Schritts ist der neueste Vermerk dazu. Frühere Büroübergaben der Projektzentrale (bis 1.27, `_Buero/<Auftrags-UUID>/`) werden mitgelesen und wie Aufgaben gezeigt.
 
-Das Datenmodul `buero-aufgaben.js` ist in BüroKit und Projektzentrale byte-gleich.
+Das Datenmodul `buero-aufgaben.js` ist in BüroKit und Projektzentrale byte-gleich. `buero-abrechnung.js` (nur BüroKit) liest den BelegKit-Stand und schreibt nie in „Abrechnung“.
 
 ## Tests
 
 ```sh
 node tests/aufgaben.cjs                    # Datenmodul gegen echte temporäre Ordner
+node tests/abrechnung.cjs                  # BelegKit-Stand lesen, Quellen vergleichen, Kopierformat
 node tests/buerokit-browser.cjs chromium   # Oberfläche im echten Browser (Playwright)
 ```

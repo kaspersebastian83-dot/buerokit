@@ -26,7 +26,7 @@ let browser, server;
     await put(r, '_Spektron-Mitarbeiter.json', JSON.stringify({ format: 'spektron-mitarbeiter', version: 1, personen: [{ ordnerKuerzel: 'Nad', appKuerzel: 'Nad', name: 'Nadine Test', aktiv: true }, { ordnerKuerzel: 'Ben', appKuerzel: 'Ben', name: 'Ben Test', aktiv: true }] }));
     const d = new Date(Date.now() - 864e5), z = n => String(n).padStart(2, '0'), gestern = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
     const p1 = await r.getDirectoryHandle('26.0101 Musterstadt Ben', { create: true });
-    await B.aufgabeAnlegen(p1, { art: 'gutachten', von: 'Ben', word: 'Mitteilungen/Gutachten.docx', faellig: gestern, hinweis: 'Mappe im Fach',
+    await B.aufgabeAnlegen(p1, { art: 'gutachten', von: 'Ben', word: 'Mitteilungen/Gutachten.docx', faellig: gestern, hinweis: 'Mappe im Fach', anlagen: ['Fotos/26.0101_Bilddokumentation.pdf', 'Laborberichte Eurofins'],
       empfaenger: [{ gruppe: 'versicherung', label: 'Auftraggeber', details: 'Muster AG\nMusterweg 5' }, { gruppe: 'versicherungsnehmer', label: 'Versicherungsnehmer', details: 'Erika Beispiel' }] });
     const p2 = await r.getDirectoryHandle('26.0102 Anderswo Nad', { create: true });
     const alt = await (await p2.getDirectoryHandle('_Buero', { create: true })).getDirectoryHandle('11111111-2222-4333-8444-555555555555', { create: true });
@@ -69,14 +69,44 @@ let browser, server;
   assert.equal(await empf.count(), 2);
   await empf.nth(0).check();
   await karte1.locator('button.schritt[data-mehr]', { hasText: 'Versand 1/2' }).waitFor();
+  assert.match(await karte1.locator('.block', { hasText: 'Anlagen' }).innerText(), /Fotos\/26\.0101_Bilddokumentation\.pdf[\s\S]*Laborberichte Eurofins/);
+  await karte1.locator('.block', { hasText: 'Noch kein Abrechnungsstand' }).waitFor();
   await karte1.locator('.empf input').nth(1).check();
-  await page.locator('#erledigtBox').waitFor();
+  // versandt → noch nicht fertig: „Rechnung schreiben“
+  await page.locator('section.rechnung .aufgabe', { hasText: '26.0101' }).waitFor();
   assert.equal(await page.locator('section.ueberfaellig').count(), 0);
+  assert.match(await page.locator('section.rechnung').innerText(), /Rechnung offen/);
+  ok('Anlagen sichtbar; nach dem Versand unter „Rechnung schreiben“, noch kein Abrechnungsstand');
+
+  // BelegKit-Stand ablegen → Positionen sichtbar und kopierbar; neue Zeitdatei → Warnung
+  await page.evaluate(async () => {
+    const r = await navigator.storage.getDirectory(), abr = await (await r.getDirectoryHandle('26.0101 Musterstadt Ben')).getDirectoryHandle('Abrechnung', { create: true });
+    const put = async (name, text) => { const w = await (await abr.getFileHandle(name, { create: true })).createWritable(); await w.write(text); await w.close(); };
+    await put('26.0101_Aufwand_2026-10-28.json', JSON.stringify({ format: 'aufwandkit-stand', version: 1, projekt: '26.0101 Musterstadt Ben', erstellt: '2026-10-28T10:00:00.000Z', von: 'BEN',
+      titel: [{ nr: 1, text: 'Ortstermin\nZeitaufwand', zeilen: [{ nr: '1.001', text: 'Sachverständiger', menge: 3.5, einheit: 'Std.' }] }], hinweise: [], netto: null, quellen: [] }));
+  });
+  const k1 = page.locator('section.rechnung .aufgabe', { hasText: '26.0101' });
+  await k1.locator('[data-abr-neu]').click();
+  await k1.locator('.abr', { hasText: 'Sachverständiger' }).waitFor();
+  assert.match(await k1.locator('.block', { hasText: 'BelegKit-Stand' }).innerText(), /Stand ist aktuell[\s\S]*1\.001\s*Sachverständiger\s*3,5\s*Std\./);
+  await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const abr = await (await r.getDirectoryHandle('26.0101 Musterstadt Ben')).getDirectoryHandle('Abrechnung');
+    const w = await (await abr.getFileHandle('Aufwand_NAD.json', { create: true })).createWritable(); await w.write('{}'); await w.close(); });
+  await k1.locator('[data-abr-neu]').click();
+  await k1.locator('.ampel.warn', { hasText: 'Zeiten NAD neu seit dem Stand' }).waitFor();
+  ok('Abrechnung aus dem BelegKit-Stand; neue Zeitdatei danach wird gemeldet');
+
+  // Rechnung abhaken (Warnung bestätigen) → abgeschlossen, mit Stand im Vermerk
+  await k1.locator('input[data-s="rechnung"]').check();
+  await page.locator('#erledigtBox').waitFor();
+  assert.equal(await page.locator('section.rechnung').count(), 0);
   await page.locator('#erledigtBox > summary').click();
   assert.match(await page.locator('#erledigtBox').innerText(), /26\.0101/);
   const dateien = await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const v = await (await (await r.getDirectoryHandle('26.0101 Musterstadt Ben')).getDirectoryHandle('_Buero')).getDirectoryHandle('vermerke'); let n = 0; for await (const _ of v.keys()) n++; return n; });
-  assert.equal(dateien, 6, 'je Haken eine Datei, auch fürs Wegnehmen');
-  ok('Haken setzen und ohne Begründung wegnehmen, Versand je Empfänger, danach „Erledigt“');
+  assert.equal(dateien, 7, 'je Haken eine Datei, auch fürs Wegnehmen');
+  const stand = await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const v = await (await (await r.getDirectoryHandle('26.0101 Musterstadt Ben')).getDirectoryHandle('_Buero')).getDirectoryHandle('vermerke');
+    for await (const h of v.values()){ const o = JSON.parse(await (await h.getFile()).text()); if (o.schritt === 'rechnung') return o.stand; } });
+  assert.equal(stand, 'Abrechnung/26.0101_Aufwand_2026-10-28.json');
+  ok('Haken setzen und ohne Begründung wegnehmen, Versand je Empfänger, Rechnung mit Stand – danach „Erledigt“');
 
   // eigene Aufgabe, heute fällig, für Nad
   await page.locator('#btnNeu').click();
