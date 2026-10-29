@@ -165,6 +165,14 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
       assert.equal(JSON.parse(await fs.readFile(path.join(auf.path, a.id + '.json'), 'utf8')).art, 'gutachten');
     });
 
+    await ok('NFD-Ordnername bleibt als erreichbarer Ordnername erhalten',async()=>{
+      const raw='99.9001 Synthe\u0308tic A',dir=await archiv.getDirectoryHandle(raw,{create:true});
+      await B.aufgabeAnlegen(dir,{art:'eigene',titel:'Synthetic task',von:'AA'});
+      const r=await B.archivLesen(archiv),a=r.aufgaben.find(x=>x.projekt.nr==='99.9001');
+      assert.equal(a.projekt.name,raw);assert.ok(r.projekte.includes(raw));
+      assert.equal((await archiv.getDirectoryHandle(a.projekt.name)).name,raw);
+    });
+
     console.log(`${n} Prüfungen BüroKit-Daten bestanden`);
   }finally{ await fs.rm(tmp, { recursive: true, force: true }); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
