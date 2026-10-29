@@ -185,7 +185,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 20px 30px;color:var(--muted);fon
 <script src="buero-abrechnung.js"></script>
 <script>
 'use strict';
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 const B = window.BueroAufgaben, R = window.BueroAbrechnung;
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -432,7 +432,7 @@ function jePersonHtml(p, jp, offen){
     <table class="abr"><thead><tr><th>Person</th><th class="r" title="Ortstermin inkl. Fahrt, Sachverständiger">SV Ort</th><th class="r" title="Ortstermin inkl. Fahrt, Probenehmer">PN Ort</th><th class="r" title="Auswertung / Bericht, Sachverständiger">SV Bericht</th><th class="r" title="Auswertung / Bericht, Probenehmer">PN Bericht</th><th class="r">km</th><th class="r">Spesen</th><th class="r">Übernacht.</th><th>Ortstermine</th></tr></thead>
     <tbody>${L.map(x => zeile(`${esc(nameVon(x.kuerzel) || x.kuerzel)}${x.unklar ? ` <span class="badge rechnung" title="Einträge, die keine Zahl sind – stehen in BelegKit als Hinweis">${x.unklar} unklar</span>` : ''}`, x, x.termine.map(d => deDatum(d).slice(0, 6)).join(', '))).join('')}</tbody>
     ${L.length > 1 ? `<tfoot>${zeile('Summe', summe, '')}</tfoot>` : ''}</table>
-    <div class="meta">Aus den Zeitdateien in „Abrechnung“ (aktueller Stand, nicht der gespeicherte). Nur fürs Büro – in den anderen Apps sieht jeder nur seine eigenen Zeiten.</div>
+    <div class="meta">Aus den Zeitdateien in „_Spektron/BelegKit“, bei älteren Projekten in „Abrechnung“ (aktueller Stand, nicht der gespeicherte). Nur fürs Büro – in den anderen Apps sieht jeder nur seine eigenen Zeiten.</div>
     ${jp.fehler.length ? `<div class="ampel warn">Nicht lesbar: ${jp.fehler.map(esc).join(' · ')}</div>` : ''}</details>`;
 }
 function abrechnungHtml(a){
@@ -455,7 +455,7 @@ function abrechnungHtml(a){
       ${preise && s.netto != null ? `<tfoot><tr><td></td><td>Netto (Vorschau)</td><td></td><td></td><td class="r">${esc(R.euro(s.netto))}</td></tr></tfoot>` : ''}</table>
     <div class="aktionen" style="margin-top:6px"><button class="primary" data-abr-kopie="${esc(p)}" title="Position, Text, Menge, Einheit – zum Einfügen ins Rechnungsprogramm oder in Excel">⧉ Positionen kopieren</button>
       ${v.aktuell ? '' : frage('Seit dem Abrechnungsstand hat sich etwas geändert – bitte in BelegKit prüfen und neu „Stand speichern“.')}
-      <span class="meta">Datei: <span class="pfad">${esc(r.datei)}</span> (daneben als .csv für Excel)</span></div>${jePersonHtml(p, e.jp, e.personOffen)}</div>`;
+      <span class="meta">Datei: <span class="pfad">${esc(r.datei)}</span> (CSV für Excel im Projektordner „Abrechnung“)</span></div>${jePersonHtml(p, e.jp, e.personOffen)}</div>`;
 }
 
 /* ---------- schreiben ---------- */
@@ -534,8 +534,8 @@ $('formNeu').onsubmit = async e => {
   e.preventDefault();
   const fehler = t => { $('neuFehler').textContent = t; $('neuFehler').hidden = false; };
   if (!ich()) return fehler('Bitte zuerst oben bei „Ich bin“ dein Kürzel wählen.');
-  const eingabe = $('neuProjekt').value.trim().normalize('NFC');
-  const name = S.projekte.find(n => n === eingabe) || S.projekte.find(n => n.startsWith(eingabe + ' ')) || S.projekte.find(n => (leseProjektordner(n) || {}).nr === eingabe);
+  const eingabe = $('neuProjekt').value.trim(), ein = eingabe.normalize('NFC');   // S.projekte: echte Ordnernamen – nur zum Vergleichen normalisieren
+  const name = S.projekte.find(n => n.normalize('NFC') === ein) || S.projekte.find(n => n.normalize('NFC').startsWith(ein + ' ')) || S.projekte.find(n => (leseProjektordner(n) || {}).nr === eingabe);
   if (!name) return fehler(`Projekt „${eingabe}“ nicht gefunden – bitte aus der Liste wählen (z. B. „26.0123“).`);
   $('neuOk').disabled = true;
   try{
