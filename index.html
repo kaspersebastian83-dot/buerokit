@@ -265,6 +265,7 @@ dialog .zeile>label{flex:1 1 200px}
     <h3 id="asTitel">Anschreiben</h3>
     <div class="meta" id="asUnter"></div>
     <label>Betreff <input id="asBetreff"></label>
+    <div class="meta" id="asObjekt"></div>
     <div class="as-raster">
       <div style="display:grid;gap:10px;align-content:start">
         <label>Anschrift (Fensterumschlag) <textarea id="asAnschrift" rows="6"></textarea></label>
@@ -811,11 +812,13 @@ async function jsonAus(dir, name){
 }
 async function anschreibenDaten(a){
   const dir = await S.archiv.getDirectoryHandle(a.projekt.name);
-  const pj = await jsonAus(dir, '_Projekt.json');
+  // beide über spektron-ordner.js: ab 26.0560 (und umgezogene Projekte) liegt _Projekt.json in „_Spektron“, nicht im Projektordner
+  const pjOrt = await SO.ort(dir, 'projekt').catch(() => ({ dir }));
+  const pj = await jsonAus(pjOrt.dir, '_Projekt.json');
   const bkOrt = await SO.ort(dir, 'berichtkit').catch(() => ({ dir: null }));
   const bk = await jsonAus(bkOrt.dir, '_BerichtKit.json');
   const cfg = await jsonAus(S.archiv, BK_CFG);
-  return { dir, pj: pj || {}, bk: bk && bk.format === 'spektron-bericht' ? bk : null, cfg: cfg && cfg.format === 'spektron-berichtkit' ? cfg : { personen: {} } };
+  return { dir, pj: pj || {}, pjDa: !!pj, bk: bk && bk.format === 'spektron-bericht' ? bk : null, cfg: cfg && cfg.format === 'spektron-berichtkit' ? cfg : { personen: {} } };
 }
 function asModell(unterzeichnerKuerzel){
   const a = AS_ST.a, l = leseProjektordner(a.projekt.name, S.personen) || { nr: a.projekt.nr, ort: '', kuerzel: '' };
@@ -844,7 +847,10 @@ async function anschreibenOeffnen(aId, empfId){
   $('asUnterzeichner').value = leute.find(k => maNorm(k) === maNorm(m.unterzeichner.kuerzel)) || '';
   $('asAnschrift').value = m.anschrift.join('\n'); $('asAnrede').value = m.anrede; $('asBetreff').value = m.betreff;
   $('asText').value = m.absaetze.join('\n\n');
-  $('asAnlagen').innerHTML = '<b>Anlagen im Brief:</b> ' + m.anlagen.map(esc).join(' · ') + (AS_ST.daten.bk ? '' : '<br>Keine Angaben aus BerichtKit gefunden – Betreff und Text bitte prüfen.');
+  $('asObjekt').textContent = [m.objekt, ...m.infos.filter(([l]) => l !== 'Datum' && l !== 'Ansprechpartner').map(([l, w]) => `${l}: ${w}`)].filter(Boolean).join(' · ');
+  const fehlt = [!AS_ST.daten.pjDa && 'Projektdaten (Objekt, Schaden-Nr., Schadendatum)', !AS_ST.daten.bk && 'Angaben aus BerichtKit (Betreff, Text, Anlagen)'].filter(Boolean);
+  $('asAnlagen').innerHTML = '<b>Anlagen im Brief:</b> ' + m.anlagen.map(esc).join(' · ')
+    + (fehlt.length ? `<br><span style="color:var(--warn)">⚠ Nicht gefunden: ${fehlt.map(esc).join(' · ')} – bitte im Brief prüfen.</span>` : '');
   $('asStatus').textContent = m.perPost ? 'Empfänger ohne E-Mail-Adresse – Anschreiben für den Postversand.' : '';
   $('asWord').disabled = $('asMail').disabled = false;
 }

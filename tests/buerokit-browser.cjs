@@ -40,6 +40,14 @@ let browser, server;
     await put(alt, 'auftrag.json', JSON.stringify({ format: 'spektron-buero', version: 1, id: '11111111-2222-4333-8444-555555555555', created: '2026-10-26T09:00:00.000Z',
       content: { project: { name: '26.0102 Anderswo Nad', nr: '26.0102', ort: 'Anderswo' }, word: 'Mitteilungen/Alt.docx', who: 'Nad', note: '', instruction: '', recipients: [{ id: 'r-1', group: 'versicherung', label: 'Auftraggeber', details: 'Beispiel Versicherung' }] } }));
     await r.getDirectoryHandle('26.0103 Ohne Aufgaben Ben', { create: true });
+    // Spektron-Projekt (ab 26.0560): Projektdaten und BerichtKit-Angaben liegen nur in „_Spektron“ (wie nach dem Umzug)
+    const p6 = await r.getDirectoryHandle('26.0600 Neustadt Ben', { create: true });
+    const sp = await p6.getDirectoryHandle('_Spektron', { create: true });
+    await put(sp, '_Projekt.json', JSON.stringify({ format: 'mosaik-projekt', version: 1, objekt: 'MFH, Ringstr. 9, 54321 Neustadt', schadennummer: 'SN-600', schadendatum: '2026-10-20' }));
+    await put(await sp.getDirectoryHandle('BerichtKit', { create: true }), '_BerichtKit.json', JSON.stringify({ format: 'spektron-bericht', version: 1, nurEigene: true, art: 'brand', form: {},
+      berichte: [{ datei: '1. Mitteilung.docx', art: 'brand', mitteilung: 1, datum: '2026-11-04', anlagenListe: [] }] }));
+    await B.aufgabeAnlegen(p6, { art: 'gutachten', von: 'Ben', word: 'Mitteilungen/1. Mitteilung.docx', faellig: '2099-12-31',
+      empfaenger: [{ gruppe: 'versicherung', label: 'Auftraggeber', details: 'Neustadt Versicherung\nkontakt@neustadt-beispiel.de' }] });
     window.showDirectoryPicker = async () => r;
   });
 
@@ -50,7 +58,7 @@ let browser, server;
   await page.locator('#ichAbbrechen').click();
   assert.match(await page.locator('section.ueberfaellig').innerText(), /26\.0101\s*Musterstadt[\s\S]*Ben Test[\s\S]*fällig seit[\s\S]*Gutachten[\s\S]*Mappe im Fach/);
   assert.match(await page.locator('section.offen').innerText(), /26\.0102\s*Anderswo/);
-  assert.equal((await page.locator('#kacheln').innerText()).replace(/\s+/g, ' '), '1 überfällig 0 heute fällig 1 später fällig 0 Rechnung schreiben 0 diese Woche erledigt');
+  assert.equal((await page.locator('#kacheln').innerText()).replace(/\s+/g, ' '), '1 überfällig 0 heute fällig 2 später fällig 0 Rechnung schreiben 0 diese Woche erledigt');
   assert.match(await page.title(), /^\(1\) BüroKit$/);
   assert.match(await page.locator('#hinweise').innerText(), /Kürzel wählen/);
   ok('Archivordner wählen, Kacheln und Gruppen nach Fälligkeit, Zahl im Fenstertitel, Kürzel wird gefragt');
@@ -96,6 +104,8 @@ let browser, server;
   assert.equal(await page.locator('#asBetreff').inputValue(), '1. Mitteilung – Sanierungsvorschlag (Brandschaden)');
   assert.match(await page.locator('#asText').inputValue(), /Mitteilung vom 02\.11\.2026[\s\S]*Die Bilddokumentation liegt als Anlage bei\. Eine Ausfertigung haben wir dem Versicherungsnehmer übersandt\./);
   assert.equal(await page.locator('#asAnschrift').inputValue(), 'Muster AG\nz. Hd. Frau Beispiel\nMusterweg 5');
+  assert.equal(await page.locator('#asObjekt').innerText(), 'EFH, Am Hang 3, 12345 Musterstadt · Schaden vom 01.10.2026 · Ihr Zeichen: SN-77 · Unser Zeichen: 26.0101 / Ben');
+  assert.doesNotMatch(await page.locator('#asAnlagen').innerText(), /Nicht gefunden/);
   await page.locator('#asWord').click();
   await page.locator('#asStatus', { hasText: 'Gespeichert' }).waitFor({ timeout: 20000 });
   await page.locator('#asWord').click();
@@ -109,6 +119,24 @@ let browser, server;
   if (mail) assert.match(mail, /^Sehr geehrte Frau Beispiel,\n\nanbei übersenden wir Ihnen[\s\S]*Nadine Test|^Sehr geehrte Frau Beispiel,/);
   await page.locator('#asSchliessen').click();
   ok('Anschreiben: Anrede, Betreff und Text aus den Projektdaten, Word in „Mitteilungen“ (ersetzen statt doppelt), E-Mail-Text');
+
+  // Spektron-Projekt: Projektdaten und BerichtKit-Angaben aus „_Spektron“ (Codex-Review PR #12)
+  const karte6 = page.locator('.karte', { hasText: '26.0600' });
+  await karte6.locator('button.link[data-mehr]').click();
+  await karte6.locator('[data-anschreiben]').first().click();
+  await page.waitForFunction(() => !document.getElementById('asWord').disabled);
+  assert.equal(await page.locator('#asObjekt').innerText(), 'MFH, Ringstr. 9, 54321 Neustadt · Schaden vom 20.10.2026 · Ihr Zeichen: SN-600 · Unser Zeichen: 26.0600 / Ben');
+  assert.equal(await page.locator('#asBetreff').inputValue(), '1. Mitteilung – Sanierungsvorschlag (Brandschaden)');
+  assert.doesNotMatch(await page.locator('#asAnlagen').innerText(), /Nicht gefunden/);
+  // fehlen die Projektdaten, sagt der Dialog es
+  await page.locator('#asSchliessen').click();
+  await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); await (await (await r.getDirectoryHandle('26.0600 Neustadt Ben')).getDirectoryHandle('_Spektron')).removeEntry('_Projekt.json'); });
+  await karte6.locator('[data-anschreiben]').first().click();
+  await page.waitForFunction(() => !document.getElementById('asWord').disabled);
+  assert.match(await page.locator('#asAnlagen').innerText(), /Nicht gefunden: Projektdaten/);
+  await page.locator('#asSchliessen').click();
+  await karte6.locator('button.link[data-mehr]').click();
+  ok('Anschreiben im Spektron-Projekt: Projektdaten aus „_Spektron“, Warnung wenn sie fehlen');
 
   // Versand je Empfänger → Rechnung schreiben
   await karte1.locator('.empf button.gut').first().click(); await fertig();
@@ -186,6 +214,10 @@ let browser, server;
   await page.locator('section.heute button.gut[data-s="erledigt"]').click();
   await page.waitForFunction(() => !document.querySelector('section.heute'));
   await page.locator('.karte', { hasText: '26.0102' }).locator('button[data-akt="loeschen"]').click();
+  await page.waitForFunction(() => !document.querySelector('.karte[data-id] .titel') || ![...document.querySelectorAll('.karte')].some(k => /26\.0102/.test(k.textContent)));
+  const k6 = page.locator('.karte', { hasText: '26.0600' });
+  await k6.locator('button.link[data-mehr]').click();
+  await k6.locator('button[data-akt="loeschen"]').click();
   await page.waitForFunction(() => !document.querySelector('section.offen'));
   assert.match(await page.locator('#liste').innerText(), /Nichts offen/);
   ok('eigene Aufgabe erledigt, Aufgabe entfernt – Liste leer');
