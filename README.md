@@ -1,8 +1,28 @@
 # BüroKit – Aufgaben des Büros
 
-**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.5.1** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
+**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.7.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
 
-Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger, Rechnung) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, offen, „Versandt – Rechnung schreiben“ und erledigt.
+Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger, Rechnung) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, später fällig, „Rechnung schreiben“ und erledigt. Für die Bürokräfte ist BüroKit die einzige Spektron-App – darum ohne Spektron-Leiste und ohne Fachbegriffe der anderen Apps.
+
+## Neu in 1.7.0 · 05.11.2026
+
+- **Anschreiben zur Mitteilung:** Im Versand-Schritt hat jeder Empfänger „📄 Anschreiben“. Ein einseitiger Brief mit Logo und Firmenkopf (wie das Deckblatt der Berichte), Anschriftfeld für den Fensterumschlag (DIN 5008 Form B), Infoblock (Ihr Zeichen = Schaden-Nr. beim Auftraggeber, sonst „Schaden-Nr.“; Unser Zeichen; Ansprechpartner; Datum), Betreff je Berichtsart, Text, Unterschrift (Bild aus `_Spektron-Unterschriften`, sonst Linie) und Anlagenliste.
+  - Vorbelegt aus `_Projekt.json`, `_BerichtKit.json` (Berichtsart, Nr./Datum der Mitteilung, Anlagen), `_Spektron-BerichtKit.json` und der Mitarbeiterliste – alles nur gelesen. Anschrift, Anrede, Betreff, Text und Unterschrift sind vor dem Speichern änderbar.
+  - Anrede aus „z. Hd. Frau/Herrn …“, sonst „Sehr geehrte Damen und Herren“.
+  - „Eine Ausfertigung haben wir … übersandt.“ nennt die übrigen Empfänger des Verteilers – ohne den Adressaten und ohne Doppelte (gleiche E-Mail oder gleicher Name, z. B. VN beauftragt selbst). Niemand sonst → Satz entfällt.
+  - „Word speichern“ legt `Anschreiben_<Mitteilung>_<Empfänger>.docx` in „Mitteilungen“ ab (vorhanden → ersetzen oder daneben). Der Name beginnt bewusst nicht mit „1. Mitteilung“, damit die Suite das Anschreiben nie für den Bericht hält. „E-Mail-Text kopieren“ und „Betreff kopieren“ liefern denselben Inhalt für die E-Mail.
+  - Texte stehen an einer Stelle: `TEXTE` in `anschreiben.js`. Word-Baustein und Logo wie in BerichtKit (`vendor/docx.iife.js`, `assets/logo-schiffers.*`), nur beim ersten Anschreiben geladen.
+
+## Neu in 1.6.0 · 05.11.2026 – einfache Oberfläche für die Bürokräfte
+
+- Kopf mit Begrüßung („Guten Morgen, Nadine“) und Datum, „aktualisiert … · läuft von selbst“ und ein Knopf **„Mehr …“** (Jetzt neu laden, Kürzel wählen, Pfad im Explorer, Handbuch, Fehler oder Wunsch melden, Archivordner wechseln, Version).
+- **Kürzel einmal wählen** – BüroKit fragt beim ersten Start, danach nur noch unter „Mehr …“.
+- **Fünf Zähl-Kacheln** (überfällig · heute · später · Rechnung schreiben · diese Woche erledigt), Klick springt zur Gruppe; Zahl der fälligen Aufgaben im Fenstertitel („(3) BüroKit“) für die Taskleiste.
+- **Karten:** Farbstreifen je Gruppe, **Schritt-Leiste** Gegenlesen → PDF → Versand → Rechnung (✓ / jetzt / später; Klick setzt einen Haken oder nimmt ihn nach Rückfrage zurück) und **ein großer Knopf für den nächsten Handgriff** („Gegengelesen ✓“ mit „Word-Pfad kopieren“, „PDF ist gemacht ✓“, „Weiter versenden (2 offen) →“, „Rechnung schreiben →“, bei eigenen Aufgaben „✓ Erledigt“). Titel aus der Word-Datei („1. Mitteilung“) statt „Gutachten“. Badges „neu“ (seit dem letzten Öffnen), „für dich“, „per Post“.
+- **Rückfrage steht in der Karte** („Wartet auf Antwort: …“) mit „Antwort eintragen“.
+- **Details je Schritt:** Versand = links „Das geht mit“ (Bericht + Anlagen, Pfad kopieren), rechts „An wen“ mit großem „Versandt ✓“ je Empfänger, E-Mail-Adresse/Anschrift kopieren; Rechnung = Anleitung in drei Schritten, Positionen, „① Positionen kopieren“ und „③ Rechnung geschrieben ✓“ (Warnung bei geändertem Stand wie bisher).
+- **Volle Windows-Pfade** zum Einfügen in Outlook („Datei anfügen → Diesen PC durchsuchen → Dateiname“) und Explorer. Der Browser kennt nur den Ordnernamen – der Archivordner im Explorer wird einmal unter „Mehr …“ › „Pfad im Explorer“ eingestellt (vorbelegt `C:\Daten\<Archivordner>`).
+- Daten, Dateien und Haken unverändert: `buero-aufgaben.js` und `buero-abrechnung.js` sind nicht angefasst, die Projektzentrale sieht alles wie bisher.
 
 ## Neu in 1.5.1 · 30.10.2026
 
@@ -42,19 +62,19 @@ Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand 
 
 ## So geht's
 
-1. Einmal den **Archivordner** wählen (der Ordner mit allen Projektordnern, z. B. „Mosaik Archivordner“). Der Browser merkt sich ihn.
-2. Oben bei **„Ich bin“** das eigene Kürzel wählen. An jedem Haken stehen dann Name und Zeit.
-3. Haken setzen, wenn ein Schritt erledigt ist – und wieder wegnehmen, wenn er versehentlich gesetzt war. Keine Begründung nötig.
-4. **Versand ▾** klappt die Empfänger auf; jeder Empfänger bekommt seinen eigenen Haken (mit Datum).
-5. **„＋ Aufgabe“** legt eine eigene Aufgabe zu einem Projekt an (z. B. „Laborrechnung prüfen“), mit Fälligkeit und für wen.
-6. **„mehr“** an einer Aufgabe: Word-Datei und Anlagen (Pfade zum Kopieren), Abrechnung aus BelegKit, Rückfrage stellen oder beantworten, Fälligkeit ändern, „Ich mache das“, entfernen.
-7. **Rechnung**: Positionen kopieren, im Rechnungsprogramm einfügen, Haken „Rechnung“ setzen. Die Projektzentrale zeigt dann „abgerechnet“.
+1. Einmal den **Archivordner** wählen (der Ordner mit allen Projektordnern, z. B. „Mosaik Archivordner“) und das eigene **Kürzel**. Der Browser merkt sich beides.
+2. Oben zeigen die Kacheln, was heute dran ist. Jede Karte hat **einen großen Knopf** für den nächsten Handgriff.
+3. **Gegenlesen:** „Word-Pfad kopieren“, im Explorer öffnen, lesen, dann „Gegengelesen ✓“. **PDF:** in Word als PDF speichern, dann „PDF ist gemacht ✓“.
+4. **Versand:** „Jetzt versenden →“ zeigt, was mitgeht (Pfade kopieren) und an wen. Je Empfänger „📄 Anschreiben“ (Word speichern, E-Mail-Text kopieren), versenden, dann „Versandt ✓“.
+5. **Rechnung:** „① Positionen kopieren“, im Rechnungsprogramm einfügen, „③ Rechnung geschrieben ✓“. Die Projektzentrale zeigt dann „abgerechnet“.
+6. Versehen? Auf den Schritt in der Leiste klicken nimmt den Haken (nach Rückfrage) zurück. „Details“ hat Rückfrage, „Ich kümmere mich“, Fälligkeit, Entfernen und den Verlauf.
+7. **„＋ Neue Aufgabe“** legt eine eigene Aufgabe zu einem Projekt an (z. B. „Laborrechnung prüfen“), mit Fälligkeit und für wen.
 
-Gutachten kommen aus der **Projektzentrale** („Ans Büro“). Rückfragen sieht der Sachverständige dort am Projekt und kann sie dort beantworten.
+Gutachten kommen aus der **Projektzentrale** („Ans Büro übergeben“). Rückfragen sieht der Sachverständige dort am Projekt und kann sie dort beantworten.
 
 ## Gespeichert wird
 
-Je Projekt im Ordner `_Buero`, ohne zentrale Datei und ohne Server:
+Je Projekt im Ordner `_Spektron/Buero` (ältere Projekte: `_Buero`), ohne zentrale Datei und ohne Server. Anschreiben landen als Word-Datei in „Mitteilungen“.
 
 ```text
 <Archiv>/<JJ.Nummer Ort Kürzel>/_Buero/aufgaben/<id>.json   eine Aufgabe
@@ -70,5 +90,6 @@ Das Datenmodul `buero-aufgaben.js` ist in BüroKit und Projektzentrale byte-glei
 ```sh
 node tests/aufgaben.cjs                    # Datenmodul gegen echte temporäre Ordner
 node tests/abrechnung.cjs                  # BelegKit-Stand lesen, Quellen vergleichen, Kopierformat, je Person
+node tests/anschreiben.cjs                 # Anschreiben: Verteiler-Satz ohne Doppelung, Anrede, Texte, echte Word-Datei
 node tests/buerokit-browser.cjs chromium   # Oberfläche im echten Browser (Playwright)
 ```

@@ -24,6 +24,7 @@ jobs:
           SPEKTRON_ORDNER_PFLICHT: '1'
       - run: node tests/aufgaben.cjs
       - run: node tests/abrechnung.cjs
+      - run: node tests/anschreiben.cjs
   browser-tests:
     name: Browser tests (chromium)
     runs-on: ubuntu-24.04
