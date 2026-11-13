@@ -1,8 +1,14 @@
 # BüroKit – Aufgaben des Büros
 
-**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.7.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
+**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.8.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
 
 Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger, Rechnung) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, später fällig, „Rechnung schreiben“ und erledigt. Für die Bürokräfte ist BüroKit die einzige Spektron-App – darum ohne Spektron-Leiste und ohne Fachbegriffe der anderen Apps.
+
+## Neu in 1.8.0 · 13.11.2026
+
+- **Word-Dateien direkt öffnen:** „📝 In Word öffnen“ statt „Word-Pfad kopieren“ beim Gegenlesen, dazu „In Word öffnen“ neben „Pfad kopieren“ bei jeder Word-Datei im Versand-Schritt (Bericht, Word-Anlagen) und beim gespeicherten Anschreiben. Gleicher Weg wie „Bericht in Word öffnen“ in LexiKit: ein `ms-word:ofe|u|file:///…`-Link auf den Windows-Pfad aus „Mehr … › Pfad im Explorer“ (zum Bearbeiten, damit Korrekturen beim Gegenlesen gehen). Edge fragt beim ersten Mal „Word öffnen?“ – „Immer zulassen“ anhaken.
+- Der Klick kopiert zusätzlich den Pfad – falls Word nicht aufgeht, geht es wie bisher mit Einfügen weiter.
+- **„Pfad kopieren“ bleibt** für Outlook (Datei anfügen → Dateiname einfügen), ebenso „Projektordner-Pfad kopieren“ und „Word-Pfad kopieren“ unter den Unterlagen. Ordner öffnet der Browser nicht direkt.
 
 ## Neu in 1.7.0 · 05.11.2026
 
