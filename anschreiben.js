@@ -265,7 +265,45 @@ function dokument(D, m, bilder) {
       headers: { default: kopf }, footers: { default: fuss }, children: kinder }] });
 }
 
-const API = { FIRMA, TEXTE, modell, mailText, dokument, ausfertigungSatz, anrede, anschrift, gleicheStelle, anlagenSatz, unterzeichner, person, berichtEintrag };
+/* ---------- Welche Word-Datei in „Mitteilungen“ gehört zu welcher Mitteilung? ---------- */
+// Die Übergabe nennt eine Word-Datei. Ältere Übergaben (oder eine Wahl von Hand) nennen manchmal das Anschreiben statt
+// der Mitteilung – dann wird die Mitteilung mit derselben Nummer gesucht. Anschreiben gehören über die Nummer zur Mitteilung
+// („Anschreiben 1. Mitteilung.docx“, „Anschreiben_2. Mitteilung_Auftraggeber.docx“), ohne Nummer über den Dateinamen der Mitteilung.
+const AS_NAME = /^Anschreiben(?![a-zäöüß])/i;
+const MITT_NAME = /^(\d+)[._\s]*Mitteilung(?![a-zäöüß])/i;
+const NEBEN = /entwurf|vorlage|vorbereitung/i;
+const nrIn = n => { const m = /(?:^|\D)(\d+)[._\s]*Mitteilung(?![a-zäöüß])/i.exec(s(n)); return m ? +m[1] : 0; };
+/** liste = Dateien im Ordner der Mitteilung ([{ name, t }] oder Namen), word = Datei aus der Übergabe (relativ).
+    → { bericht: rel | '', anschreiben: [rel], nr, andere: [{ nr, bericht, anschreiben }] } – andere = übrige Mitteilungen des Projekts */
+function wordDateien(liste, word) {
+  const w = s(word), ordner = w.includes('/') ? w.slice(0, w.lastIndexOf('/') + 1) : 'Mitteilungen/';
+  const docs = (liste || []).map(x => typeof x === 'string' ? { name: x, t: 0 } : x)
+    .filter(x => x && /\.docx?$/i.test(s(x.name)) && !/^~\$/.test(x.name));
+  const nachName = (a, b) => a.name.localeCompare(b.name, 'de', { numeric: true });
+  const berichtZu = nr => {
+    const k = docs.filter(x => MITT_NAME.test(x.name) && +MITT_NAME.exec(x.name)[1] === nr && !NEBEN.test(x.name))
+      .sort((a, b) => (b.t || 0) - (a.t || 0) || nachName(a, b));
+    return k.length ? ordner + k[0].name : '';
+  };
+  const anschreibenZu = (nr, stamm) => docs.filter(x => AS_NAME.test(x.name) && (nr ? nrIn(x.name) === nr : !!stamm && x.name.includes(stamm)))
+    .sort(nachName).map(x => ordner + x.name);
+  const wb = base(w), nr = nrIn(wb);
+  const bericht = w && !AS_NAME.test(wb) ? w : (nr ? berichtZu(nr) : '');
+  const anschreiben = anschreibenZu(nr, ohneEndung(base(bericht)));
+  const nrs = [...new Set(docs.map(x => MITT_NAME.test(x.name) ? +MITT_NAME.exec(x.name)[1] : AS_NAME.test(x.name) ? nrIn(x.name) : 0))]
+    .filter(k => k && k !== nr).sort((a, b) => a - b);
+  const andere = nrs.map(k => ({ nr: k, bericht: berichtZu(k), anschreiben: anschreibenZu(k, '') })).filter(g => g.bericht || g.anschreiben.length);
+  return { bericht, anschreiben, nr, andere };
+}
+/** Beschriftung eines Anschreibens: „Anschreiben · Auftraggeber“ (Empfänger aus dem BüroKit-Namen), sonst „Anschreiben“ */
+function anschreibenTitel(rel, stamm) {
+  let r = ohneEndung(base(rel)).replace(/^Anschreiben[\s_-]*/i, '');
+  r = r.replace(/^\d+[._\s]*Mitteilung(?![a-zäöüß])[\s_-]*/i, '');
+  if (stamm && r.startsWith(stamm)) r = r.slice(stamm.length).replace(/^[\s_-]+/, '');
+  return r ? 'Anschreiben · ' + r : 'Anschreiben';
+}
+
+const API = { wordDateien, anschreibenTitel, FIRMA, TEXTE, modell, mailText, dokument, ausfertigungSatz, anrede, anschrift, gleicheStelle, anlagenSatz, unterzeichner, person, berichtEintrag };
 if (typeof module === 'object' && module.exports) module.exports = API;
 root.Anschreiben = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

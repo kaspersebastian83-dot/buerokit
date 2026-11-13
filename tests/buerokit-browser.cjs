@@ -129,6 +129,18 @@ let browser, server;
   const mail = await page.evaluate(() => navigator.clipboard.readText()).catch(() => '');
   if (mail) assert.match(mail, /^Sehr geehrte Frau Beispiel,\n\nanbei übersenden wir Ihnen[\s\S]*Nadine Test|^Sehr geehrte Frau Beispiel,/);
   await page.locator('#asSchliessen').click();
+  // gespeichertes Anschreiben steht danach in „Das geht mit“ – mit „In Word öffnen“; dazu eine 2. Mitteilung mit Anschreiben im selben Projekt
+  const dasGehtMit = karte1.locator('.box', { hasText: 'Das geht mit' });
+  await dasGehtMit.locator('.datei', { hasText: 'Anschreiben · Auftraggeber' }).waitFor();
+  assert.match(await dasGehtMit.locator('.datei', { hasText: 'Anschreiben · Auftraggeber' }).locator('a[data-word]').getAttribute('href'), /Mitteilungen\/Anschreiben_Gutachten_Auftraggeber\.docx$/);
+  await page.evaluate(async () => { const m = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('26.0101 Musterstadt Ben')).getDirectoryHandle('Mitteilungen');
+    for (const n of ['2. Mitteilung.docx', 'Anschreiben 2. Mitteilung.docx', '~$schreiben 2. Mitteilung.docx']){ const w = await (await m.getFileHandle(n, { create: true })).createWritable(); await w.write('x'); await w.close(); }
+    await mittLesen('26.0101 Musterstadt Ben'); });
+  await dasGehtMit.locator('details.unter summary', { hasText: 'Andere Mitteilungen in diesem Projekt (1)' }).click();
+  const andere = await dasGehtMit.locator('details.unter .datei').evaluateAll(es => es.map(e => [e.querySelector('b').textContent, e.querySelector('a[data-word]').dataset.word]));
+  assert.deepEqual(andere.map(x => x[0]), ['2. Mitteilung', 'Anschreiben (2. Mitteilung)']);
+  assert.match(andere[1][1], /\\Mitteilungen\\Anschreiben 2\. Mitteilung\.docx$/);
+  assert.match(await dasGehtMit.locator('h3').innerText(), /Bericht \+ Anschreiben/);
   ok('Anschreiben: Anrede, Betreff und Text aus den Projektdaten, Word in „Mitteilungen“ (ersetzen statt doppelt), E-Mail-Text');
 
   // Spektron-Projekt: Projektdaten und BerichtKit-Angaben aus „_Spektron“ (Codex-Review PR #12)
