@@ -297,7 +297,7 @@ dialog .zeile>label{flex:1 1 200px}
 <script src="anschreiben.js"></script>
 <script>
 'use strict';
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 const B = window.BueroAufgaben, R = window.BueroAbrechnung, AS = window.Anschreiben, SO = window.SpektronOrdner;
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -415,6 +415,7 @@ async function allesLesen(stumm = false){
     if (!S.zuletztGesetzt){ S.zuletztGesetzt = true; lsSet('buerokit-zuletzt', new Date().toISOString()); }   // „neu“ = seit dem letzten Öffnen
     $('projektListe').innerHTML = S.projekte.map(n => `<option value="${esc(n)}"></option>`).join('');
     zeichnen();
+    mittLesen();
     if (!ich() && !document.querySelector('dialog[open]')) ichFragen();
   }catch(e){
     if (lauf !== S.lesen) return;
@@ -423,6 +424,39 @@ async function allesLesen(stumm = false){
     $('stand').innerHTML = S.gelesen ? 'aktualisiert ' + S.gelesen.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + '<br>(veraltet)' : '';
   }
 }
+/* ---------- Word-Dateien je Mitteilung (Bericht + Anschreiben, auch 2., 3. Mitteilung …) ---------- */
+S.mitt = new Map();   // "<Projekt>|<Ordner>" → { liste: [{ name, t }], zeit }
+const mittOrdner = a => { const w = String(a.word || ''); return w.includes('/') ? w.slice(0, w.lastIndexOf('/')) : 'Mitteilungen'; };
+const mittKey = a => a.projekt.name + '|' + mittOrdner(a);
+function wordInfo(a){ const c = S.mitt.get(mittKey(a)); return AS.wordDateien(c ? c.liste : [], a.word); }
+/** Bericht für Titel, Gegenlesen und Anschreiben – nennt die Übergabe ein Anschreiben, die Mitteilung mit derselben Nummer */
+function berichtVon(a){ const w = wordInfo(a); return w.bericht || (w.nr ? `${mittOrdner(a)}/${w.nr}. Mitteilung.docx` : a.word); }
+/** Liest den Mitteilungen-Ordner der offenen Gutachten (je Projekt höchstens einmal pro Minute), zeichnet neu, wenn sich etwas geändert hat */
+async function mittLesen(nurProjekt){
+  if (!S.archiv) return;
+  if (S.mittLaeuft){ S.mittNochmal = nurProjekt || true; return; }
+  S.mittLaeuft = true; let anders = false;
+  try{
+    const ziele = new Map();
+    for (const a of S.aufgaben) if (a.art === 'gutachten' && !a.geloescht && a.word && (!nurProjekt || a.projekt.name === nurProjekt)) ziele.set(mittKey(a), a);
+    for (const [k, a] of ziele){
+      const alt = S.mitt.get(k);
+      if (alt && !nurProjekt && Date.now() - alt.zeit < 55000) continue;
+      let liste = [];
+      try{
+        let dir = await S.archiv.getDirectoryHandle(a.projekt.name);
+        for (const teil of mittOrdner(a).split('/').filter(Boolean)) dir = await dir.getDirectoryHandle(teil);
+        for await (const [name, h] of dir.entries()) if (h.kind === 'file' && /\.docx?$/i.test(name) && !/^~\$/.test(name))
+          liste.push({ name, t: /mitteilung/i.test(name) && !/^anschreiben/i.test(name) ? await h.getFile().then(f => f.lastModified).catch(() => 0) : 0 });
+      }catch(e){ liste = alt ? alt.liste : []; }
+      liste.sort((x, y) => x.name.localeCompare(y.name));
+      if (!alt || JSON.stringify(alt.liste) !== JSON.stringify(liste)) anders = true;
+      S.mitt.set(k, { liste, zeit: Date.now() });
+    }
+  }finally{ S.mittLaeuft = false; }
+  if (anders) zeichnen();
+  if (S.mittNochmal){ const n = S.mittNochmal; S.mittNochmal = null; mittLesen(n === true ? undefined : n); }
+}
 /** Nur ein Projekt neu lesen (nach einem Haken) – schnell, der Rest bleibt. */
 async function projektNeu(name){
   const dir = await S.archiv.getDirectoryHandle(name);
@@ -430,6 +464,7 @@ async function projektNeu(name){
   S.aufgaben = S.aufgaben.filter(a => a.projekt.name !== r.projekt.name).concat(r.aufgaben);
   S.fehler = S.fehler.filter(f => !f.startsWith(r.projekt.name + ':')).concat(r.fehler);
   zeichnen();
+  mittLesen(r.projekt.name);
 }
 
 /* ---------- zeichnen ---------- */
@@ -487,7 +522,7 @@ function zeichnen(){
 const FARBE = { ueberfaellig: 'rot', heute: 'gelb', offen: 'blau', rechnung: 'braun', erledigt: 'erledigt' };
 const dis = () => S.schreiben ? ' disabled' : '';
 const da = (a, extra = '') => `data-a="${esc(a.id)}" data-p="${esc(a.projekt.name)}"${extra}`;
-function titelVon(a){ return a.art === 'gutachten' && (!a.titel || a.titel === 'Gutachten') && a.word ? base(a.word).replace(/\.docx?$/i, '') : a.titel; }
+function titelVon(a){ return a.art === 'gutachten' && (!a.titel || a.titel === 'Gutachten') && a.word ? base(berichtVon(a)).replace(/\.docx?$/i, '') : a.titel; }
 /** Nächster offener Schritt eines Gutachtens: gegenlesen | pdf | versand | rechnung | '' */
 function naechster(a){
   if (a.art !== 'gutachten' || a.abgeschlossen) return '';
@@ -517,7 +552,7 @@ function hauptHtml(a){
     return `<button type="button" class="gut" ${da(a, ' data-s="erledigt" data-wert="1"')}${dis()}>✓ Erledigt</button>${details}`;
   }
   const k = naechster(a);
-  if (k === 'gegenlesen') return `${a.word ? wordKnopf(winPfad(a.projekt.name, a.word), '📝 In Word öffnen', 'primaer') : ''}<button type="button" class="primary" ${da(a, ' data-s="gegenlesen" data-wert="1"')}${dis()}>Gegengelesen ✓</button>${details}`;
+  if (k === 'gegenlesen'){ const b = wordInfo(a).bericht; return `${b ? wordKnopf(winPfad(a.projekt.name, b), '📝 In Word öffnen', 'primaer') : ''}<button type="button" class="primary" ${da(a, ' data-s="gegenlesen" data-wert="1"')}${dis()}>Gegengelesen ✓</button>${details}`; }
   if (k === 'pdf') return `<button type="button" class="primary" ${da(a, ' data-s="pdf" data-wert="1"')}${dis()}>PDF ist gemacht ✓</button>${details}`;
   if (k === 'versand'){
     if (offen) return details;
@@ -570,13 +605,19 @@ function anlageIcon(x){ return /laborergebnisse\//i.test(x) ? '🧪' : /^fotos\/
 function versandHtml(a){
   const p = a.projekt.name, n = a.empfaenger.length, v = Object.keys(a.versand).length;
   let links = '';
+  const w = wordInfo(a), stamm = base(w.bericht).replace(/\.docx?$/i, '');
   if (a.pdf && a.pdf.pdf) links += dateiZeile('📄', 'Bericht (PDF)', a.pdf.pdf, p);
-  else if (a.word) links += dateiZeile('📝', 'Bericht (Word) – PDF daneben speichern', a.word, p);
+  if (w.bericht) links += dateiZeile('📝', a.pdf && a.pdf.pdf ? 'Bericht (Word)' : 'Bericht (Word) – PDF daneben speichern', w.bericht, p);
+  else if (a.word) links += `<div class="meta">Die ${w.nr ? w.nr + '. ' : ''}Mitteilung selbst ist in „${esc(mittOrdner(a))}“ nicht zu finden – die Übergabe nennt nur „${esc(base(a.word))}“.</div>`;
+  w.anschreiben.forEach(x => { links += dateiZeile('✉', AS.anschreibenTitel(x, stamm), x, p); });
   if (a.anlagen.length) a.anlagen.forEach((x, i) => { links += istPfad(x) ? dateiZeile(anlageIcon(x), `Anlage ${i + 1} · ${base(x)}`, x, p)
     : `<div class="datei"><span aria-hidden="true">📎</span><div class="n"><b>Anlage ${i + 1} · ${esc(x)}</b></div></div>`; });
   else links += `<div class="meta">${a.alt ? 'Anlagen wurden bei früheren Übergaben nicht erfasst.' : 'Keine Anlagen angegeben.'}</div>`;
+  if (w.andere.length) links += `<details class="unter"><summary>Andere Mitteilungen in diesem Projekt (${w.andere.length})</summary>${w.andere.map(g =>
+      (g.bericht ? dateiZeile('📝', `${g.nr}. Mitteilung`, g.bericht, p) : `<div class="meta">${g.nr}. Mitteilung – Word-Datei nicht gefunden</div>`)
+      + g.anschreiben.map(x => dateiZeile('✉', `${AS.anschreibenTitel(x, '')} (${g.nr}. Mitteilung)`, x, p)).join('')).join('')}</details>`;
   links += `<div class="tipp">💡 In Outlook: <b>Datei anfügen → Diesen PC durchsuchen</b>, oben ins Feld „Dateiname“ einfügen, Enter.</div>
-    <div class="kl" style="margin-top:8px"><button type="button" data-kopie="${esc(winPfad(p))}">📂 Projektordner-Pfad kopieren</button>${a.word ? `<button type="button" data-kopie="${esc(winPfad(p, a.word))}">📝 Word-Pfad kopieren</button>` : ''}</div>`;
+    <div class="kl" style="margin-top:8px"><button type="button" data-kopie="${esc(winPfad(p))}">📂 Projektordner-Pfad kopieren</button>${w.bericht ? `<button type="button" data-kopie="${esc(winPfad(p, w.bericht))}">📝 Word-Pfad kopieren</button>` : ''}</div>`;
   const rechts = a.empfaenger.map(r => {
     const vv = a.versand[r.id], post = !/@/.test(r.details || '');
     const mail = (String(r.details || '').match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/) || [])[0];
@@ -588,7 +629,7 @@ function versandHtml(a){
         : `<div class="knoepfe"><button type="button" class="gut" ${da(a, ` data-s="versand" data-e="${esc(r.id)}" data-wert="1"`)}${dis()}>Versandt ✓</button></div>`}
     </div>`;
   }).join('');
-  return `<div class="zwei"><div class="box"><h3>📎 Das geht mit <small>Bericht${a.anlagen.length ? ` + ${a.anlagen.length} Anlage${a.anlagen.length === 1 ? '' : 'n'}` : ''}</small></h3>${links}</div>
+  return `<div class="zwei"><div class="box"><h3>📎 Das geht mit <small>Bericht${w.anschreiben.length ? ' + Anschreiben' : ''}${a.anlagen.length ? ` + ${a.anlagen.length} Anlage${a.anlagen.length === 1 ? '' : 'n'}` : ''}</small></h3>${links}</div>
     <div class="box"><h3>✉ An wen <small>${v} von ${n} erledigt</small></h3>${rechts}</div></div>`;
 }
 function aktionenHtml(a){
@@ -857,7 +898,7 @@ async function anschreibenOeffnen(aId, empfId){
   const a = S.aufgaben.find(x => x.id === aId), an = a && a.empfaenger.find(r => r.id === empfId);
   if (!a || !an) return;
   $('asStatus').textContent = 'Lese Projektdaten …'; $('asWord').disabled = $('asMail').disabled = true;
-  AS_ST.a = a; AS_ST.an = an;
+  AS_ST.a = { ...a, word: berichtVon(a) }; AS_ST.an = an;
   $('asTitel').textContent = `Anschreiben an: ${an.label || an.gruppe}`;
   $('asUnter').textContent = `${a.projekt.name} · ${titelVon(a)}`;
   $('dlgAnschreiben').showModal();
@@ -915,6 +956,7 @@ $('asWord').onclick = async () => {
     $('asStatus').innerHTML = `✓ Gespeichert in „Mitteilungen“: <b>${esc(name)}</b>${sig ? '' : ' (ohne Unterschrift-Bild – bitte unterschreiben)'} ${wordKnopf(pfad, 'In Word öffnen')} <button type="button" class="link" id="asPfad">Pfad kopieren</button>
       <br><span class="meta">PDF daraus wie bei der Mitteilung in Word speichern.</span>`;
     $('asPfad').onclick = ev => kopieren(pfad, ev.currentTarget);
+    mittLesen(AS_ST.a.projekt.name);   // neues Anschreiben erscheint in „Das geht mit“
   }catch(e){ $('asStatus').innerHTML = `<span style="color:var(--err)">Nicht gespeichert: ${esc(e.message || e)}</span>`; }
   finally{ knopf.disabled = false; }
 };

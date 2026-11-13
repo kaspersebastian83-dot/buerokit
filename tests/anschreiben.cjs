@@ -112,5 +112,24 @@ const E = (gruppe, ...zeilen) => ({ id: 'e' + Math.random().toString(36).slice(2
     assert.match(s, /word\/document\.xml/); assert.match(s, /word\/media\//);
   });
 
+  await ok('Word-Dateien je Mitteilung: Übergabe nennt das Anschreiben → Mitteilung mit derselben Nummer; Anschreiben je Nummer; andere Mitteilungen', () => {
+    const L = [{ name: '1. Mitteilung.docx', t: 5 }, 'Anschreiben 1. Mitteilung.docx', { name: '2. Mitteilung.docx', t: 9 }, { name: '2. Mitteilung_Entwurf.docx', t: 20 },
+      { name: '2. Mitteilung korrigiert.docx', t: 12 }, 'Anschreiben_2. Mitteilung_Auftraggeber.docx', 'Anschreiben_2. Mitteilung_Versicherungsnehmer.docx',
+      '26.0513_Brand_Probenahme_2026-10-01.docx', '~$schreiben 1. Mitteilung.docx', '12. Mitteilung.docx', 'Notiz.txt'];
+    const a = A.wordDateien(L, 'Mitteilungen/Anschreiben 1. Mitteilung.docx');
+    assert.equal(a.bericht, 'Mitteilungen/1. Mitteilung.docx'); assert.deepEqual(a.anschreiben, ['Mitteilungen/Anschreiben 1. Mitteilung.docx']); assert.equal(a.nr, 1);
+    assert.deepEqual(a.andere.map(g => [g.nr, g.bericht, g.anschreiben.length]), [[2, 'Mitteilungen/2. Mitteilung korrigiert.docx', 2], [12, 'Mitteilungen/12. Mitteilung.docx', 0]]);
+    const b = A.wordDateien(L, 'Mitteilungen/2. Mitteilung.docx');
+    assert.equal(b.bericht, 'Mitteilungen/2. Mitteilung.docx', 'genannte Datei gilt');
+    assert.deepEqual(b.anschreiben, ['Mitteilungen/Anschreiben_2. Mitteilung_Auftraggeber.docx', 'Mitteilungen/Anschreiben_2. Mitteilung_Versicherungsnehmer.docx']);
+    assert.deepEqual(b.andere.map(g => g.nr), [1, 12]);
+    const c = A.wordDateien(['Gutachten.docx', 'Anschreiben_Gutachten_Muster AG.docx', 'Anschreiben_Anderes_X.docx'], 'Mitteilungen/Gutachten.docx');
+    assert.deepEqual(c.anschreiben, ['Mitteilungen/Anschreiben_Gutachten_Muster AG.docx']);
+    assert.equal(A.wordDateien([], 'Mitteilungen/Anschreiben 3. Mitteilung.docx').bericht, '', 'Mitteilung fehlt → leer');
+    assert.equal(A.anschreibenTitel('M/Anschreiben_2. Mitteilung_Auftraggeber.docx', '2. Mitteilung'), 'Anschreiben · Auftraggeber');
+    assert.equal(A.anschreibenTitel('M/Anschreiben 1. Mitteilung.docx', '1. Mitteilung'), 'Anschreiben');
+    assert.equal(A.anschreibenTitel('M/Anschreiben_Gutachten_Muster AG.docx', 'Gutachten'), 'Anschreiben · Muster AG');
+  });
+
   console.log(`${n} Prüfungen bestanden`);
 })().catch(e => { console.error(e); process.exit(1); });

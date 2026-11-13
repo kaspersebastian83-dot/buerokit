@@ -1,8 +1,15 @@
 # BüroKit – Aufgaben des Büros
 
-**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.8.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
+**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.9.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
 
 Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger, Rechnung) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, später fällig, „Rechnung schreiben“ und erledigt. Für die Bürokräfte ist BüroKit die einzige Spektron-App – darum ohne Spektron-Leiste und ohne Fachbegriffe der anderen Apps.
+
+## Neu in 1.9.0 · 13.11.2026
+
+- **Mitteilung und Anschreiben getrennt öffnen:** BüroKit liest den Ordner „Mitteilungen“ der offenen Gutachten und zeigt unter „Das geht mit“ den Bericht *und* die Anschreiben dieser Mitteilung, jedes mit „In Word öffnen“ und „Pfad kopieren“. Anschreiben gehören über die Nummer zur Mitteilung („Anschreiben 1. Mitteilung.docx“, „Anschreiben_2. Mitteilung_Auftraggeber.docx“), ohne Nummer über den Namen der Mitteilung.
+- **Nennt eine Übergabe das Anschreiben statt der Mitteilung** (ältere Übergaben, Wahl von Hand), nimmt BüroKit die Mitteilung mit derselben Nummer – für Titel, „In Word öffnen“ beim Gegenlesen, „Word-Pfad kopieren“ und das Anschreiben. Ist sie nicht da, steht das in der Karte.
+- **2., 3. Mitteilung …:** jede Karte zeigt ihre eigene Mitteilung mit ihren Anschreiben; die übrigen Mitteilungen des Projekts (mit ihren Anschreiben) stehen zugeklappt unter „Andere Mitteilungen in diesem Projekt“.
+- Entwürfe (`_Entwurf`, Vorlage, Vorbereitung) und Word-Sperrdateien (`~$…`) zählen nicht; bei mehreren Fassungen derselben Nummer gilt die neueste. Gelesen wird höchstens einmal pro Minute je Projekt und sofort nach einem gespeicherten Anschreiben. Logik: `wordDateien` in `anschreiben.js`.
 
 ## Neu in 1.8.0 · 13.11.2026
 
