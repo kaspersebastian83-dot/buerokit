@@ -65,6 +65,14 @@ let browser, server;
 
   // ohne Kürzel kein Haken – Hauptknopf fragt nach dem Kürzel
   const karte1 = page.locator('.karte', { hasText: '26.0101' });
+  // Gegenlesen: „In Word öffnen“ statt „Word-Pfad kopieren“; Klick kopiert zusätzlich den Pfad (Navigation im Test abgefangen)
+  const wk = karte1.locator('.unten a[data-word]');
+  assert.equal((await wk.innerText()).trim(), '📝 In Word öffnen');
+  assert.match(await wk.getAttribute('href'), /^ms-word:ofe\|u\|file:\/\/\/C:\/Daten\/(?:[^\/]+\/)?26\.0101%20Musterstadt%20Ben\/Mitteilungen\/Gutachten\.docx$/);
+  await page.evaluate(() => window.addEventListener('click', e => { if (e.target.closest('a[data-word]')) e.preventDefault(); }, true));
+  await wk.click();
+  await page.waitForFunction(() => /Pfad kopiert/.test(document.querySelector('.karte .unten a[data-word]').textContent));
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /\\26\.0101 Musterstadt Ben\\Mitteilungen\\Gutachten\.docx$/);
   await karte1.locator('button.primary[data-s="gegenlesen"]').click();
   await page.locator('#dlgIch[open]').waitFor();
   await page.locator('#ich').selectOption('Nad'); await page.locator('#formIch button.primary').click();
@@ -92,6 +100,9 @@ let browser, server;
   const kopien = await karte1.locator('.box', { hasText: 'Das geht mit' }).locator('[data-kopie]').evaluateAll(es => es.map(e => e.dataset.kopie));
   assert.ok(kopien.includes('X:\\Archiv\\26.0101 Musterstadt Ben\\Mitteilungen\\Gutachten.docx'), 'voller Pfad zum Kopieren');
   assert.ok(kopien.includes('X:\\Archiv\\26.0101 Musterstadt Ben\\Fotos\\26.0101_Bilddokumentation.pdf'));
+  // Word direkt öffnen (wie LexiKit): ms-word:-Link mit kodiertem file:///-Pfad, nur bei Word-Dateien
+  const words = await karte1.locator('.box', { hasText: 'Das geht mit' }).locator('a[data-word]').evaluateAll(es => es.map(e => [e.getAttribute('href'), e.dataset.word]));
+  assert.deepEqual(words, [['ms-word:ofe|u|file:///X:/Archiv/26.0101%20Musterstadt%20Ben/Mitteilungen/Gutachten.docx', 'X:\\Archiv\\26.0101 Musterstadt Ben\\Mitteilungen\\Gutachten.docx']]);
   assert.equal(await karte1.locator('.empf button.gut').count(), 2);
   assert.match(await karte1.locator('.empf').nth(1).innerText(), /per Post/);
   assert.match(await karte1.locator('details.unter').textContent(), /Noch keine Rechnungsangaben/);
