@@ -766,13 +766,25 @@ async function haken(el){
     }
   }
   if (schritt === 'versand') extra = { empfaenger: el.dataset.e, ...(an ? { datum: heute() } : {}) };
-  await vermerk(p, { aufgabe: aId, schritt, wert: an, ...extra });
+  const gespeichert = await vermerk(p, { aufgabe: aId, schritt, wert: an, ...extra });
+  if (gespeichert && schritt === 'rechnung' && an){
+    const g = gleichzeitigVon(aId, 'rechnung');
+    if (g) stopp(`Achtung: ${esc(nameVon(g.von) || g.von)} hat die Rechnung fast gleichzeitig als geschrieben markiert (${esc(deZeit(g.zeit))}). Bitte absprechen, ob in MOS'aik zwei Rechnungen entstanden sind.`);
+  }
 }
 /** Rechnung schon geschrieben (C2)? Liest das Projekt frisch – ein Kollege kann sie inzwischen erledigt haben. Text oder ''. */
 async function schonAbgerechnet(p, aId){
-  try{ await projektNeu(p); }catch(e){ return ''; }
+  // Nicht lesbar → abbrechen statt mit dem alten Stand weiterzumachen (Codex P2 auf #17)
+  try{ await projektNeu(p); }catch(e){ return `Der aktuelle Stand des Projekts ließ sich gerade nicht lesen (${esc(e.message || e)}) – bitte gleich noch einmal versuchen.`; }
   const a = S.aufgaben.find(x => x.id === aId);
   return a && a.rechnung ? `Die Rechnung hat ${esc(nameVon(a.rechnung.von) || a.rechnung.von)} schon geschrieben (${esc(deZeit(a.rechnung.zeit))}).` : '';
+}
+/** Nach dem Schreiben noch einmal nachsehen (Codex P1 auf #17): Prüfen und Schreiben sind auf dem Laufwerk nicht ein Schritt –
+    klicken zwei Kolleginnen fast gleichzeitig, merkt es so wenigstens jede sofort. Vermerke anderer zum Schritt aus den letzten 15 Minuten. */
+function gleichzeitigVon(aId, schritt){
+  const a = S.aufgaben.find(x => x.id === aId), seit = new Date(Date.now() - 15 * 60000).toISOString();
+  if (!a) return null;
+  return a.verlauf.find(v => v.schritt === schritt && v.wert && maNorm(v.von) !== maNorm(ich()) && v.zeit >= seit) || null;
 }
 function textFragen(titel, frage, vorgabe = ''){
   return new Promise(res => {
@@ -822,9 +834,14 @@ $('liste').addEventListener('click', async e => {
     const p = ak.dataset.abrKopie, aId = ak.dataset.aufgabe, st = S.abr.get(p); if (!st || !st.r || !st.r.stand) return;
     const schon = await schonAbgerechnet(p, aId);
     if (schon){ stopp(schon + ' Positionen nicht kopiert.'); return; }
-    await kopieren(R.tsv(st.r.stand), document.querySelector(`[data-abr-kopie="${CSS.escape(p)}"]`) || ak);
     const a = S.aufgaben.find(x => x.id === aId);   // „Ich kümmere mich“, damit die Kollegen es sehen (C2)
-    if (a && !a.uebernommen && ich()) await vermerk(p, { aufgabe: aId, schritt: 'uebernommen' });
+    if (a && a.uebernommen && maNorm(a.uebernommen.von) !== maNorm(ich())
+      && !confirm(`${nameVon(a.uebernommen.von) || a.uebernommen.von} kümmert sich schon um diese Rechnung (seit ${deZeit(a.uebernommen.zeit)}).\n\nTrotzdem die Positionen kopieren?`)) return;
+    await kopieren(R.tsv(st.r.stand), document.querySelector(`[data-abr-kopie="${CSS.escape(p)}"]`) || ak);
+    if (a && !a.uebernommen && ich() && await vermerk(p, { aufgabe: aId, schritt: 'uebernommen' })){
+      const g = gleichzeitigVon(aId, 'uebernommen');
+      if (g) stopp(`Achtung: ${esc(nameVon(g.von) || g.von)} hat die Positionen fast gleichzeitig kopiert (${esc(deZeit(g.zeit))}). Bitte absprechen, wer die Rechnung schreibt.`);
+    }
     return;
   }
   const kk = e.target.closest('[data-abr-kopf]');

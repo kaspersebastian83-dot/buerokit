@@ -40,6 +40,9 @@ let browser, server;
     for (const s of ['gegenlesen', 'pdf']) await B.vermerken(p, { aufgabe: a.id, schritt: s, von: 'Ben' });
     await B.vermerken(p, { aufgabe: a.id, schritt: 'versand', empfaenger: a.empfaenger[0].id, von: 'Ben' });
     await B.aufgabeAnlegen(p, { art: 'eigene', titel: 'Laborrechnung prüfen', von: 'Ben', faellig: '2099-02-01' });
+    const a3 = await B.aufgabeAnlegen(p, { art: 'gutachten', von: 'Ben', word: 'Mitteilungen/3._Mitteilung_26.0101.docx', faellig: '2099-04-01', empfaenger: [{ gruppe: 'versicherung', label: 'Auftraggeber', details: 'Muster AG\nschaden@muster-beispiel.de' }] });
+    for (const s of ['gegenlesen', 'pdf']) await B.vermerken(p, { aufgabe: a3.id, schritt: s, von: 'Ben' });
+    await B.vermerken(p, { aufgabe: a3.id, schritt: 'versand', empfaenger: a3.empfaenger[0].id, von: 'Ben' });
     await B.aufgabeAnlegen(p, { art: 'gutachten', von: 'Ben', word: 'Mitteilungen/2._Mitteilung_26.0101.docx', faellig: '2099-03-01', empfaenger: [{ gruppe: 'versicherung', label: 'Auftraggeber', details: 'Muster AG\nschaden@muster-beispiel.de' }] });
     const abr = await p.getDirectoryHandle('Abrechnung', { create: true });
     await put(abr, '26.0101_Aufwand_2026-11-20.json', JSON.stringify({ format: 'aufwandkit-stand', version: 1, projekt: '26.0101 Musterstadt Ben', erstellt: new Date().toISOString(), von: 'BEN', programm: 'BelegKit 1.17.1',
@@ -58,7 +61,7 @@ let browser, server;
   await nad.locator('.karte .meta', { hasText: 'du kümmerst dich' }).waitFor();
   assert.match(await nad.evaluate(() => navigator.clipboard.readText()), /^Position\tText\tMenge\tEinheit\r\n/);
   await nad.locator('button', { hasText: '③ Rechnung geschrieben' }).click();
-  await nad.waitForFunction(() => !document.querySelector('#g-rechnung'));
+  await nad.waitForFunction(() => ![...document.querySelectorAll('#g-rechnung .karte')].some(k => k.textContent.includes('1._Mitteilung')));
   await ben.locator('button', { hasText: '③ Rechnung geschrieben' }).click();
   await ben.locator('#hinweise .hinweis.err', { hasText: /Die Rechnung hat .+ schon geschrieben .*Nichts gespeichert/ }).waitFor();
   const zahl = await ben.evaluate(async () => { const r = await navigator.storage.getDirectory(); const d = await (await (await r.getDirectoryHandle('26.0101 Musterstadt Ben')).getDirectoryHandle('_Buero')).getDirectoryHandle('vermerke');
@@ -102,6 +105,25 @@ let browser, server;
   await ben.locator('#hinweise .hinweis.err', { hasText: 'nicht gespeichert' }).waitFor();
   assert.deepEqual(await faellig(), [getippt]);
   ok('Fälligkeit: erst mit Enter/Verlassen gespeichert, Jahr 0001 abgelehnt');
+
+  // Codex P2: Projekt nicht lesbar → nichts gespeichert. Codex P1: zwei fast gleichzeitige Klicks → Warnung bei der Zweiten.
+  const karte3 = () => ben.locator('.karte', { hasText: '3._Mitteilung' });
+  await ben.evaluate(() => localStorage.setItem('buerokit-ich', 'Ben'));
+  await karte3().locator('button.primary', { hasText: 'Rechnung schreiben' }).click();
+  await karte3().locator('button', { hasText: '③ Rechnung geschrieben' }).waitFor();
+  await ben.evaluate(() => { const orig = window.projektNeu; window.projektNeu = async () => { window.projektNeu = orig; throw new Error('Laufwerk weg'); }; });
+  await karte3().locator('button', { hasText: '③ Rechnung geschrieben' }).click();
+  await ben.locator('#hinweise .hinweis.err', { hasText: 'ließ sich gerade nicht lesen (Laufwerk weg)' }).waitFor();
+  const rechnungen = () => ben.evaluate(async () => { const r = await navigator.storage.getDirectory(); const d = await (await (await r.getDirectoryHandle('26.0101 Musterstadt Ben')).getDirectoryHandle('_Buero')).getDirectoryHandle('vermerke');
+    let n = 0; for await (const [, h] of d.entries()) if (JSON.parse(await (await h.getFile()).text()).schritt === 'rechnung') n++; return n; });
+  assert.equal(await rechnungen(), 1, 'nicht lesbar → kein Rechnung-Vermerk');
+  await ben.evaluate(() => { const orig = window.schonAbgerechnet; window.schonAbgerechnet = async (p, id) => { const r = await orig(p, id);   // Nadine schreibt genau zwischen Prüfen und Schreiben
+    await window.BueroAufgaben.vermerken(await (await navigator.storage.getDirectory()).getDirectoryHandle(p), { aufgabe: id, schritt: 'rechnung', von: 'Nad' }); window.schonAbgerechnet = orig; return r; }; });
+  if (!(await karte3().locator('button', { hasText: '③ Rechnung geschrieben' }).count())) await karte3().locator('button.primary', { hasText: 'Rechnung schreiben' }).click();
+  await karte3().locator('button', { hasText: '③ Rechnung geschrieben' }).click();
+  await ben.locator('#hinweise .hinweis.err', { hasText: /Achtung: Nadine Test hat die Rechnung fast gleichzeitig/ }).waitFor();
+  assert.equal(await rechnungen(), 3);
+  ok('Projekt nicht lesbar → abgebrochen; fast gleichzeitiger Rechnung-Haken → Warnung');
 
   assert.deepEqual(errors, []);
   await browser.close(); server.close();
