@@ -297,7 +297,7 @@ dialog .zeile>label{flex:1 1 200px}
 <script src="anschreiben.js"></script>
 <script>
 'use strict';
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 const B = window.BueroAufgaben, R = window.BueroAbrechnung, AS = window.Anschreiben, SO = window.SpektronOrdner;
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -351,6 +351,8 @@ const istPfad = x => /^[^/\\]+[/\\][^/\\]/.test(x) && /\.[A-Za-z0-9]{2,5}$/.test
 
 function hinweis(art, html){ $('hinweise').insertAdjacentHTML('beforeend', `<div class="hinweis ${art}">${html}</div>`); }
 function hinweiseLeeren(){ $('hinweise').innerHTML = ''; }
+/** Wichtiger Hinweis oben – dorthin scrollen, damit man ihn sieht. */
+function stopp(html){ hinweis('err', html); $('hinweise').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
 /* ---------- Explorer-Pfad (E6): der Browser kennt nur den Ordnernamen ---------- */
 const explorerWurzel = () => lsGet('buerokit-explorer', '') || ('C:\\Daten\\' + (S.archiv ? S.archiv.name : 'Mosaik Archivordner'));
@@ -508,7 +510,10 @@ function zeichnen(){
   if (!g.ueberfaellig.length && !g.heute.length && !g.offen.length && !g.rechnung.length)
     html += `<p class="leer">${S.aufgaben.length ? (S.filter === 'meine' ? 'Für dich ist gerade nichts offen.' : 'Nichts offen – alles erledigt. 🎉') : 'Noch keine Aufgaben. Gutachten kommen aus der Projektzentrale („Ans Büro übergeben“); eigene Aufgaben mit „＋ Neue Aufgabe“.'}</p>`;
   if (g.erledigt.length) html += `<details class="gruppe" id="g-erledigt"${lsGet('buerokit-erledigt', '') === '1' ? ' open' : ''}><summary>Diese Woche erledigt (${g.erledigt.length})</summary>${g.erledigt.map(a => karte(a, 'erledigt')).join('')}</details>`;
+  // Fokus auf demselben Bedienelement halten (Neu-Lesen jede Minute, C1)
+  const f = document.activeElement, fSel = f && $('liste').contains(f) ? ['a', 's', 'e', 'akt', 'mehr', 'kopie', 'abrKopie', 'abrKopf', 'anschreiben'].filter(k => f.dataset && f.dataset[k] != null).map(k => `[data-${k.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(f.dataset[k])}"]`).join('') : '';
   $('liste').innerHTML = html;
+  if (fSel){ const n = $('liste').querySelector(fSel); if (n && !n.disabled) n.focus({ preventScroll: true }); }
   if ($('g-erledigt')) $('g-erledigt').ontoggle = () => lsSet('buerokit-erledigt', $('g-erledigt').open ? '1' : '');
   if (S.fehler.length) hinweis('', `${S.fehler.length} Datei${S.fehler.length === 1 ? '' : 'en'} konnte${S.fehler.length === 1 ? '' : 'n'} nicht gelesen werden – die übrigen Aufgaben stimmen. <details><summary>Welche?</summary>${S.fehler.slice(0, 30).map(f => '<div>' + esc(f) + '</div>').join('')}</details>`);
   if (!ich()) hinweis('', 'Bitte unter „Mehr …“ › „Kürzel wählen“ dein Kürzel wählen – dann stehen an jedem Haken Name und Zeit.');
@@ -711,12 +716,21 @@ function abrechnungHtml(a){
   const tab = s.titel.map(t => `<tbody><tr class="t"><td>Titel ${esc(t.nr)}</td><td colspan="${preise ? 4 : 3}">${esc(t.text).replace(/\n/g, ' – ')}</td></tr>
     ${t.zeilen.map(x => `<tr><td class="mono">${esc(x.nr) || '?'}</td><td>${esc(x.text)}${x.zusatz ? ` <span class="meta">(${esc(x.zusatz)})</span>` : ''}</td><td class="r"><b>${esc(R.fmt(x.menge))}</b></td><td>${esc(x.einheit)}</td>${preise ? `<td class="r">${esc(R.euro(x.gesamt))}</td>` : ''}</tr>`).join('')}</tbody>`).join('');
   return `<div class="block" data-abr="${esc(p)}" data-aufgabe="${esc(a.id)}">${fertig}${a.rechnung ? '' : anleitung}${ampel}
+    ${(v.hinweise || []).map(x => `<div class="ampel warn">${esc(x)}</div>`).join('')}${R.stornoText(v.storno) ? `<div class="ampel warn">${esc(R.stornoText(v.storno))}</div>` : ''}
     ${s.hinweise.length ? `<div class="ampel warn">BelegKit meldete beim Speichern: <ul>${s.hinweise.map(x => '<li>' + esc(x) + '</li>').join('')}</ul></div>` : ''}
     <table class="abr"><thead><tr><th>Position</th><th>Text</th><th class="r">Menge</th><th>Einheit</th>${preise ? '<th class="r">Gesamt (Vorschau)</th>' : ''}</tr></thead>${tab}
       ${preise && s.netto != null ? `<tfoot><tr><td></td><td>Netto (Vorschau)</td><td></td><td></td><td class="r">${esc(R.euro(s.netto))}</td></tr></tfoot>` : ''}</table>
-    <div class="aktionen" style="margin-top:10px"><button type="button" class="primary" data-abr-kopie="${esc(p)}" title="Position, Text, Menge, Einheit – zum Einfügen ins Rechnungsprogramm oder in Excel">① Positionen kopieren</button>${haken}
+    <div class="aktionen" style="margin-top:10px"><button type="button" class="primary" data-abr-kopie="${esc(p)}" data-aufgabe="${esc(a.id)}" title="Position, Text, Menge, Einheit – zum Einfügen ins Rechnungsprogramm oder in Excel. Setzt „Ich kümmere mich“, damit niemand die Rechnung doppelt schreibt.">① Positionen kopieren</button><button type="button" data-abr-kopf="${esc(p)}" data-aufgabe="${esc(a.id)}" title="Empfänger, Ihr Zeichen (Schaden-Nr.), Unser Zeichen, Objekt – für den Kopf der Rechnung">Rechnungskopf kopieren</button>${haken}
       ${v.aktuell ? '' : frage('Seit dem Abrechnungsstand hat sich etwas geändert – bitte in BelegKit prüfen und neu „Stand speichern“.')}
       <span class="meta" title="${esc(r.datei)}">CSV für Excel im Projektordner „Abrechnung“</span></div>${jePersonHtml(p, e.jp, e.personOffen)}</div>`;
+}
+
+/** Rechnungskopf (C10): Auftraggeber aus den Empfängern der Übergabe (ohne E-Mail-Zeilen), sonst aus den Angaben in BelegKit. */
+function kopfText(a, stand){
+  const pd = (stand && stand.projektdaten) || {}, l = leseProjektordner(a.projekt.name, S.personen) || { nr: a.projekt.nr };
+  const ag = a.empfaenger.find(r => r.gruppe === 'versicherung');
+  const anschrift = ag ? String(ag.details || '').split(/\r?\n/).filter(z => z.trim() && !/@/.test(z)) : String(pd.auftraggeber || '').split(/\r?\n|,\s*/);
+  return R.rechnungskopf({ anschrift, schadennummer: pd.schadennummer, objekt: pd.objekt, projekt: l.nr || a.projekt.nr });
 }
 
 /* ---------- schreiben ---------- */
@@ -741,6 +755,8 @@ async function haken(el){
   if (!an && !confirm(`Haken „${NAMEN[schritt] || schritt}“ zurücknehmen?`)) return;
   let extra = {};
   if (schritt === 'rechnung' && an){
+    const schon = await schonAbgerechnet(p, aId);
+    if (schon){ stopp(schon + ' Nichts gespeichert.'); return; }
     await abrLesen(p, true);
     const e = S.abr.get(p) || {};
     if (!e.r || !e.r.stand){ if (!confirm('Zu diesem Projekt gibt es keine Rechnungsangaben aus BelegKit. Trotzdem als „Rechnung geschrieben“ markieren?')) return; }
@@ -750,7 +766,25 @@ async function haken(el){
     }
   }
   if (schritt === 'versand') extra = { empfaenger: el.dataset.e, ...(an ? { datum: heute() } : {}) };
-  await vermerk(p, { aufgabe: aId, schritt, wert: an, ...extra });
+  const gespeichert = await vermerk(p, { aufgabe: aId, schritt, wert: an, ...extra });
+  if (gespeichert && schritt === 'rechnung' && an){
+    const g = gleichzeitigVon(aId, 'rechnung');
+    if (g) stopp(`Achtung: ${esc(nameVon(g.von) || g.von)} hat die Rechnung fast gleichzeitig als geschrieben markiert (${esc(deZeit(g.zeit))}). Bitte absprechen, ob in MOS'aik zwei Rechnungen entstanden sind.`);
+  }
+}
+/** Rechnung schon geschrieben (C2)? Liest das Projekt frisch – ein Kollege kann sie inzwischen erledigt haben. Text oder ''. */
+async function schonAbgerechnet(p, aId){
+  // Nicht lesbar → abbrechen statt mit dem alten Stand weiterzumachen (Codex P2 auf #17)
+  try{ await projektNeu(p); }catch(e){ return `Der aktuelle Stand des Projekts ließ sich gerade nicht lesen (${esc(e.message || e)}) – bitte gleich noch einmal versuchen.`; }
+  const a = S.aufgaben.find(x => x.id === aId);
+  return a && a.rechnung ? `Die Rechnung hat ${esc(nameVon(a.rechnung.von) || a.rechnung.von)} schon geschrieben (${esc(deZeit(a.rechnung.zeit))}).` : '';
+}
+/** Nach dem Schreiben noch einmal nachsehen (Codex P1 auf #17): Prüfen und Schreiben sind auf dem Laufwerk nicht ein Schritt –
+    klicken zwei Kolleginnen fast gleichzeitig, merkt es so wenigstens jede sofort. Vermerke anderer zum Schritt aus den letzten 15 Minuten. */
+function gleichzeitigVon(aId, schritt){
+  const a = S.aufgaben.find(x => x.id === aId), seit = new Date(Date.now() - 15 * 60000).toISOString();
+  if (!a) return null;
+  return a.verlauf.find(v => v.schritt === schritt && v.wert && maNorm(v.von) !== maNorm(ich()) && v.zeit >= seit) || null;
 }
 function textFragen(titel, frage, vorgabe = ''){
   return new Promise(res => {
@@ -774,10 +808,21 @@ document.addEventListener('click', async e => {
   w.textContent = kopiert ? 'Word öffnet … (Pfad kopiert)' : 'Word öffnet …';
   setTimeout(() => { if (w.isConnected) w.innerHTML = alt; }, 3500);
 });
-$('liste').addEventListener('change', async e => {
-  const el = e.target;
-  if (el.matches('input[data-akt="faellig"]')) await vermerk(el.dataset.p, { aufgabe: el.dataset.a, schritt: 'faellig', wert: !!el.value, ...(el.value ? { datum: el.value } : {}) });
-});
+/* Fälligkeit (Audit Lauf 3, C3): Chrome/Edge melden „change“ schon nach dem ersten getippten Teil des Datums – gespeichert wird darum
+   erst beim Verlassen des Felds oder mit Enter, nur wenn sich der Wert geändert hat und das Jahr plausibel ist. */
+const faelligOk = v => { if (!v) return true; const y = +v.slice(0, 4), j = new Date().getFullYear(); return y >= j - 1 && y <= j + 5; };
+async function faelligSpeichern(el){
+  if (el.dataset.geaendert !== '1') return;
+  el.dataset.geaendert = '';
+  const a = S.aufgaben.find(x => x.id === el.dataset.a);
+  if (!a || (a.faellig || '') === el.value) return;
+  if (!faelligOk(el.value)){ stopp( `Fälligkeit „${esc(deDatum(el.value) || el.value)}“ nicht gespeichert – bitte das Datum prüfen.`); el.value = a.faellig || ''; return; }
+  await vermerk(el.dataset.p, { aufgabe: el.dataset.a, schritt: 'faellig', wert: !!el.value, ...(el.value ? { datum: el.value } : {}) });
+}
+$('liste').addEventListener('input', e => { if (e.target.matches('input[data-akt="faellig"]')) e.target.dataset.geaendert = '1'; });
+$('liste').addEventListener('change', e => { if (e.target.matches('input[data-akt="faellig"]')) e.target.dataset.geaendert = '1'; });
+$('liste').addEventListener('focusout', e => { if (e.target.matches('input[data-akt="faellig"]')) faelligSpeichern(e.target); });
+$('liste').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input[data-akt="faellig"]')){ e.preventDefault(); faelligSpeichern(e.target); } });
 $('liste').addEventListener('toggle', e => { const d = e.target; if (d.matches && d.matches('details.person')){ const st = S.abr.get(d.dataset.person); if (st) st.personOffen = d.open; } }, true);
 $('liste').addEventListener('click', async e => {
   const m = e.target.closest('[data-mehr]');
@@ -785,7 +830,22 @@ $('liste').addEventListener('click', async e => {
   const neu = e.target.closest('[data-abr-neu]');
   if (neu){ abrLesen(neu.dataset.abrNeu, true); return; }
   const ak = e.target.closest('[data-abr-kopie]');
-  if (ak){ const st = S.abr.get(ak.dataset.abrKopie); if (!st || !st.r || !st.r.stand) return; await kopieren(R.tsv(st.r.stand), ak); return; }
+  if (ak){
+    const p = ak.dataset.abrKopie, aId = ak.dataset.aufgabe, st = S.abr.get(p); if (!st || !st.r || !st.r.stand) return;
+    const schon = await schonAbgerechnet(p, aId);
+    if (schon){ stopp(schon + ' Positionen nicht kopiert.'); return; }
+    const a = S.aufgaben.find(x => x.id === aId);   // „Ich kümmere mich“, damit die Kollegen es sehen (C2)
+    if (a && a.uebernommen && maNorm(a.uebernommen.von) !== maNorm(ich())
+      && !confirm(`${nameVon(a.uebernommen.von) || a.uebernommen.von} kümmert sich schon um diese Rechnung (seit ${deZeit(a.uebernommen.zeit)}).\n\nTrotzdem die Positionen kopieren?`)) return;
+    await kopieren(R.tsv(st.r.stand), document.querySelector(`[data-abr-kopie="${CSS.escape(p)}"]`) || ak);
+    if (a && !a.uebernommen && ich() && await vermerk(p, { aufgabe: aId, schritt: 'uebernommen' })){
+      const g = gleichzeitigVon(aId, 'uebernommen');
+      if (g) stopp(`Achtung: ${esc(nameVon(g.von) || g.von)} hat die Positionen fast gleichzeitig kopiert (${esc(deZeit(g.zeit))}). Bitte absprechen, wer die Rechnung schreibt.`);
+    }
+    return;
+  }
+  const kk = e.target.closest('[data-abr-kopf]');
+  if (kk){ const a = S.aufgaben.find(x => x.id === kk.dataset.aufgabe), st = S.abr.get(kk.dataset.abrKopf); if (a) await kopieren(kopfText(a, st && st.r && st.r.stand), kk); return; }
   const k = e.target.closest('[data-kopie]');
   if (k){ await kopieren(k.dataset.kopie, k); return; }
   const as = e.target.closest('[data-anschreiben]');
@@ -965,7 +1025,9 @@ document.querySelectorAll('.chips [data-filter]').forEach(b => b.onclick = () =>
 $('suche').oninput = () => { S.suche = $('suche').value; zeichnen(); };
 $('btnArchiv2').onclick = archivWaehlen;
 // aktuell halten: beim Zurückkommen und jede Minute, solange das Fenster sichtbar ist (nur die kleinen „Buero“-Dateien)
-const leise = () => { if (S.archiv && !S.schreiben && !document.hidden && !document.querySelector('dialog[open]') && $('menue').hidden && !$('liste').contains(document.activeElement)) allesLesen(true); };
+// Ausgesetzt wird nur, solange jemand in ein Feld der Liste tippt (Audit Lauf 3, C1) – ein Knopf mit Fokus („Pfad kopieren“) hält nichts auf.
+const tipptInListe = () => { const el = document.activeElement; return !!el && $('liste').contains(el) && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && (el.type !== 'date' || el.dataset.geaendert === '1'); };
+const leise = () => { if (S.archiv && !S.schreiben && !document.hidden && !document.querySelector('dialog[open]') && $('menue').hidden && !tipptInListe()) allesLesen(true); };
 window.addEventListener('focus', leise);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) leise(); });
 setInterval(leise, 60000);
