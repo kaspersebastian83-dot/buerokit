@@ -1,8 +1,19 @@
 # BüroKit – Aufgaben des Büros
 
-**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.9.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
+**App öffnen:** https://kaspersebastian83-dot.github.io/buerokit/ · Version **1.10.0** · Teil der Suite **Spektron**, läuft aber auch allein (nur Chrome oder Edge und der Archivordner).
 
 Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand je Empfänger, Rechnung) und eigene Aufgaben je Projekt, sortiert nach überfällig, heute fällig, später fällig, „Rechnung schreiben“ und erledigt. Für die Bürokräfte ist BüroKit die einzige Spektron-App – darum ohne Spektron-Leiste und ohne Fachbegriffe der anderen Apps.
+
+## Neu in 1.10.0 · 20.11.2026 (Audit Lauf 3)
+
+- **Liste bleibt aktuell:** Auch wenn ein Knopf in der Liste den Fokus hat (nach „Pfad kopieren“, „E-Mail-Adresse kopieren“, „In Word öffnen“), liest BüroKit jede Minute und beim Zurückkommen neu. Ausgesetzt wird nur, solange jemand im Datumsfeld tippt; der Fokus bleibt auf demselben Knopf.
+- **Keine doppelte Rechnung:** Vor „① Positionen kopieren“ und vor „③ Rechnung geschrieben ✓“ liest BüroKit das Projekt frisch. Hat eine Kollegin die Rechnung schon geschrieben, steht das oben („Die Rechnung hat … schon geschrieben“) und es wird nichts kopiert bzw. gespeichert. „① Positionen kopieren“ setzt „Ich kümmere mich“, damit die anderen sehen, wer gerade abrechnet.
+- **Rechnungskopf kopieren:** neuer Knopf neben ①: Anschrift des Auftraggebers (aus der Übergabe, ohne E-Mail), „Ihr Zeichen“ (Schaden-Nr.), „Unser Zeichen“ (Projekt-Nr.) und Objekt – zum Einfügen in MOS'aik.
+- **Fälligkeit tippen:** gespeichert wird erst beim Verlassen des Felds oder mit Enter (vorher speicherte schon der erste getippte Teil). Ein Jahr außerhalb von „letztes Jahr bis in fünf Jahren“ wird nicht gespeichert.
+- **Alte BelegKit-Angaben mit stornierten Proben:** Angaben aus BelegKit vor 1.17.0 rechneten stornierte Proben noch mit. Ist die LabelKit-Datei seitdem unverändert und hat stornierte Proben, gelten die Angaben als nicht aktuell („… rechnen stornierte Proben noch mit (P2 PAK) – bitte neue Angaben anfordern“).
+- **Stornierte Proben im Rechnungsblock:** Neuere Angaben nennen die in LabelKit stornierten (nicht abgerechneten) Proben; hat eine davon laut ResultKit ein Laborergebnis (`_Ergebnisse.json`, Feld `storniertMitWert`, nur gelesen), steht das dabei. `_Ergebnisse.json` gehört nicht zu den Quellen der Angaben.
+- **Korrektur beim Gegenlesen:** Ändert sich eine abgerechnete Mitteilung nach den Angaben, vergleicht BüroKit ihre Seitenzahl (Word: `docProps/app.xml`, PDF: gezählt) mit der abgerechneten. Nur eine andere Seitenzahl macht die Angaben veraltet; gleiche oder nicht sicher lesbare Seitenzahl → gelbe Zeile.
+- Tests: `tests/kollegen-browser.cjs` (zwei Fenster), neue Fälle in `tests/abrechnung.cjs`; `tests/aufgaben.cjs` vergleicht `buero-aufgaben.js` jetzt auch von BüroKit aus byte-gleich mit der Projektzentrale (in CI Pflicht).
 
 ## Neu in 1.9.0 · 13.11.2026
 
@@ -77,9 +88,9 @@ Eine Tagesliste für das Büro: übergebene Gutachten (Gegenlesen, PDF, Versand 
 
 1. Einmal den **Archivordner** wählen (der Ordner mit allen Projektordnern, z. B. „Mosaik Archivordner“) und das eigene **Kürzel**. Der Browser merkt sich beides.
 2. Oben zeigen die Kacheln, was heute dran ist. Jede Karte hat **einen großen Knopf** für den nächsten Handgriff.
-3. **Gegenlesen:** „Word-Pfad kopieren“, im Explorer öffnen, lesen, dann „Gegengelesen ✓“. **PDF:** in Word als PDF speichern, dann „PDF ist gemacht ✓“.
+3. **Gegenlesen:** „📝 In Word öffnen“ (beim ersten Mal in Edge „Immer zulassen“), lesen und korrigieren, dann „Gegengelesen ✓“. **PDF:** in Word als PDF speichern, dann „PDF ist gemacht ✓“.
 4. **Versand:** „Jetzt versenden →“ zeigt, was mitgeht (Pfade kopieren) und an wen. Je Empfänger „📄 Anschreiben“ (Word speichern, E-Mail-Text kopieren), versenden, dann „Versandt ✓“.
-5. **Rechnung:** „① Positionen kopieren“, im Rechnungsprogramm einfügen, „③ Rechnung geschrieben ✓“. Die Projektzentrale zeigt dann „abgerechnet“.
+5. **Rechnung:** „① Positionen kopieren“ (und „Rechnungskopf kopieren“), im Rechnungsprogramm einfügen, „③ Rechnung geschrieben ✓“. Die Projektzentrale zeigt dann „abgerechnet“.
 6. Versehen? Auf den Schritt in der Leiste klicken nimmt den Haken (nach Rückfrage) zurück. „Details“ hat Rückfrage, „Ich kümmere mich“, Fälligkeit, Entfernen und den Verlauf.
 7. **„＋ Neue Aufgabe“** legt eine eigene Aufgabe zu einem Projekt an (z. B. „Laborrechnung prüfen“), mit Fälligkeit und für wen.
 
@@ -101,8 +112,9 @@ Das Datenmodul `buero-aufgaben.js` ist in BüroKit und Projektzentrale byte-glei
 ## Tests
 
 ```sh
-node tests/aufgaben.cjs                    # Datenmodul gegen echte temporäre Ordner
+node tests/aufgaben.cjs                    # Datenmodul gegen echte temporäre Ordner (+ byte-gleich mit ../projektzentrale)
 node tests/abrechnung.cjs                  # BelegKit-Stand lesen, Quellen vergleichen, Kopierformat, je Person
 node tests/anschreiben.cjs                 # Anschreiben: Verteiler-Satz ohne Doppelung, Anrede, Texte, echte Word-Datei
 node tests/buerokit-browser.cjs chromium   # Oberfläche im echten Browser (Playwright)
+node tests/kollegen-browser.cjs chromium   # zwei Büro-Fenster: Aktualisieren, doppelte Rechnung, Fälligkeit tippen
 ```

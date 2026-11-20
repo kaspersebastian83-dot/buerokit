@@ -173,6 +173,14 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('OK ' +
       assert.equal((await archiv.getDirectoryHandle(a.projekt.name)).name,raw);
     });
 
+    // Audit Lauf 3, C8: byte-gleich mit der Projektzentrale (bisher prüfte das nur die Projektzentrale)
+    const fsSync = require('node:fs'), vorlage = path.join(__dirname, '..', '..', 'projektzentrale', 'buero-aufgaben.js');
+    if (fsSync.existsSync(vorlage)){
+      assert.ok(fsSync.readFileSync(path.join(__dirname, '..', 'buero-aufgaben.js')).equals(fsSync.readFileSync(vorlage)), 'buero-aufgaben.js weicht von der Projektzentrale ab – bitte byte-gleich kopieren');
+      console.log('OK buero-aufgaben.js: byte-gleich mit der Projektzentrale');
+    } else if (process.env.PROJEKTZENTRALE_PFLICHT) assert.fail('Projektzentrale liegt nicht daneben (../projektzentrale) – in CI muss der Vergleich laufen');
+    else console.log('OK buero-aufgaben.js: Vergleich übersprungen (Projektzentrale liegt nicht daneben)');
+
     console.log(`${n} Prüfungen BüroKit-Daten bestanden`);
   }finally{ await fs.rm(tmp, { recursive: true, force: true }); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
